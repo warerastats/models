@@ -29,6 +29,8 @@ type TrackersCollection struct {
 	User    *trackers.UserStore
 	Country *trackers.CountryStore
 	Region  *trackers.RegionStore
+	Party   *trackers.PartyStore
+	Mu      *trackers.MuStore
 }
 
 func Init(context.Context) (*Collections, error) {
@@ -72,6 +74,8 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			User:    trackers.NewUserStore(ctx, db),
 			Country: trackers.NewCountryStore(ctx, db),
 			Region:  trackers.NewRegionStore(ctx, db),
+			Party:   trackers.NewPartyStore(ctx, db),
+			Mu:      trackers.NewMuStore(ctx, db),
 		},
 	}
 }
