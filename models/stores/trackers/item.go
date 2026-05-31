@@ -97,3 +97,12 @@ func (s *ItemStore) Create(
 	_, err := s.coll.InsertOne(ctx, item)
 	return err
 }
+
+func (s *ItemStore) SetOwnerUserID(ctx context.Context, id bson.ObjectID, ownerUserID bson.ObjectID) error {
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "ownerUserId", Value: ownerUserID}}}},
+	)
+	return err
+}
