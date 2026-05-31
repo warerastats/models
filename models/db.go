@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/warerastats/models/models/stores/states"
 	"github.com/warerastats/models/models/stores/trackers"
 	"github.com/warerastats/models/models/stores/transactions"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -18,6 +19,11 @@ type Collections struct {
 
 	Transactions TransactionsCollection
 	Trackers     TrackersCollection
+	States       StatesCollection
+}
+
+type StatesCollection struct {
+	ScraperState *states.ScraperStateStore
 }
 
 type TransactionsCollection struct {
@@ -102,6 +108,10 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			Company:   trackers.NewCompanyStore(ctx, db),
 			Employee:  trackers.NewEmployeeStore(ctx, db),
 			ItemOffer: trackers.NewItemOfferStore(ctx, db),
+		},
+
+		States: StatesCollection{
+			ScraperState: states.NewScraperStateStore(ctx, db),
 		},
 	}
 }
