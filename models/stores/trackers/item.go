@@ -106,3 +106,12 @@ func (s *ItemStore) SetOwnerUserID(ctx context.Context, id bson.ObjectID, ownerU
 	)
 	return err
 }
+
+func (s *ItemStore) SetStatus(ctx context.Context, id bson.ObjectID, status enums.ItemStatus) error {
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "status", Value: status}}}},
+	)
+	return err
+}
