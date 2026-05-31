@@ -11,7 +11,7 @@ import (
 )
 
 type Order struct {
-	ID            bson.ObjectID  `bson:"id,omitempty"`
+	ID            bson.ObjectID  `bson:"_id,omitempty"`
 	BattleID      bson.ObjectID  `bson:"battleId"`
 	Side          enums.Side     `bson:"side"`
 	ActiveSince   time.Time      `bson:"activeSince"`

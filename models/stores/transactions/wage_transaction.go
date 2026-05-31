@@ -10,7 +10,7 @@ import (
 )
 
 type WageTransaction struct {
-	ID               bson.ObjectID `bson:"id"`
+	ID               bson.ObjectID `bson:"_id"`
 	EmployeeID       bson.ObjectID `bson:"employeeId"`
 	EmployerID       bson.ObjectID `bson:"employerId"`
 	Money            float64       `bson:"money"`
@@ -75,7 +75,7 @@ func (s *WageTransactionStore) Create(
 
 	_, err := s.coll.UpdateOne(
 		ctx,
-		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "_id", Value: id}},
 		bson.D{{Key: "$setOnInsert", Value: tx}},
 		options.UpdateOne().SetUpsert(true),
 	)

@@ -10,7 +10,7 @@ import (
 )
 
 type ScraperState struct {
-	ID              bson.ObjectID `bson:"id,omitempty"`
+	ID              bson.ObjectID `bson:"_id,omitempty"`
 	LastTransaction time.Time     `bson:"lastTransaction"`
 
 	coll *mongo.Collection
@@ -56,7 +56,7 @@ func (s *ScraperStateStore) Get(ctx context.Context) *ScraperState {
 }
 
 func (s *ScraperState) Set(ctx context.Context) {
-	_, err := s.coll.ReplaceOne(ctx, bson.D{{Key: "id", Value: s.ID}}, s)
+	_, err := s.coll.ReplaceOne(ctx, bson.D{{Key: "_id", Value: s.ID}}, s)
 	if err != nil {
 		slog.Error("Failed setting scraper_state", "error", err)
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 type DismantleTransaction struct {
-	ID             bson.ObjectID `bson:"id"`
+	ID             bson.ObjectID `bson:"_id"`
 	UserID         bson.ObjectID `bson:"userId"`
 	ItemID         bson.ObjectID `bson:"itemId"`
 	ScrapsReceived int           `bson:"scraps"`
@@ -72,7 +72,7 @@ func (s *DismantleTransactionStore) Create(
 
 	_, err := s.coll.UpdateOne(
 		ctx,
-		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "_id", Value: id}},
 		bson.D{{Key: "$setOnInsert", Value: tx}},
 		options.UpdateOne().SetUpsert(true),
 	)

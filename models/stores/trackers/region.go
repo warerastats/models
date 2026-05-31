@@ -10,7 +10,7 @@ import (
 )
 
 type Region struct {
-	ID                bson.ObjectID   `bson:"id"`
+	ID                bson.ObjectID   `bson:"_id"`
 	Name              string          `bson:"name"`
 	CountryID         bson.ObjectID   `bson:"countryId"`
 	InitialCountryID  bson.ObjectID   `bson:"initialCountryId"`
@@ -37,12 +37,12 @@ func NewRegionStore(ctx context.Context, db *mongo.Database) *RegionStore {
 func (s *RegionStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on regions.id",
+			"Failed creating index on regions._id",
 			"error", err,
 		)
 		return

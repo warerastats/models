@@ -10,7 +10,7 @@ import (
 )
 
 type ItemOffer struct {
-	ID        bson.ObjectID `bson:"id"`
+	ID        bson.ObjectID `bson:"_id"`
 	UserID    bson.ObjectID `bson:"userId"`
 	ItemCode  string        `bson:"itemCode"`
 	Quantity  int           `bson:"quantity"`
@@ -35,12 +35,12 @@ func NewItemOfferStore(ctx context.Context, db *mongo.Database) *ItemOfferStore 
 func (s *ItemOfferStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on itemOffers.id",
+			"Failed creating index on itemOffers._id",
 			"error", err,
 		)
 		return

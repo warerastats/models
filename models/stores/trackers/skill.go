@@ -10,7 +10,7 @@ import (
 )
 
 type Skill struct {
-	ID     bson.ObjectID `bson:"id,omitempty"`
+	ID     bson.ObjectID `bson:"_id,omitempty"`
 	UserID bson.ObjectID `bson:"userId"`
 	Skills UserSkills    `bson:"skills"`
 	Since  time.Time     `bson:"since"`

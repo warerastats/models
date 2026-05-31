@@ -11,7 +11,7 @@ import (
 )
 
 type User struct {
-	ID            bson.ObjectID      `bson:"id,omitempty"`
+	ID            bson.ObjectID      `bson:"_id,omitempty"`
 	Username      string             `bson:"username"`
 	UsernameLower string             `bson:"usernameLower"`
 	Level         int                `bson:"level"`
@@ -65,12 +65,12 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on users.id",
+			"Failed creating index on users._id",
 			"error", err,
 		)
 		return

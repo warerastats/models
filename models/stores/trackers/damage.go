@@ -9,7 +9,7 @@ import (
 )
 
 type Damage struct {
-	ID           bson.ObjectID `bson:"id,omitempty"`
+	ID           bson.ObjectID `bson:"_id,omitempty"`
 	BattleID     bson.ObjectID `bson:"battleId"`
 	UserID       bson.ObjectID `bson:"userId"`
 	WeaponID     bson.ObjectID `bson:"weaponId"`

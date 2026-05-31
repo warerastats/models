@@ -10,7 +10,7 @@ import (
 )
 
 type Party struct {
-	ID            bson.ObjectID   `bson:"id"`
+	ID            bson.ObjectID   `bson:"_id"`
 	Name          string          `bson:"name"`
 	Description   string          `bson:"description"`
 	CountryID     bson.ObjectID   `bson:"countryId"`
@@ -42,12 +42,12 @@ func NewPartyStore(ctx context.Context, db *mongo.Database) *PartyStore {
 func (s *PartyStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on parties.id",
+			"Failed creating index on parties._id",
 			"error", err,
 		)
 		return

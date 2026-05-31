@@ -10,7 +10,7 @@ import (
 )
 
 type Country struct {
-	ID    bson.ObjectID `bson:"id"`
+	ID    bson.ObjectID `bson:"_id"`
 	Name  string        `bson:"name"`
 	Code  string        `bson:"code"`
 	Money float64       `bson:"money"`
@@ -39,12 +39,12 @@ func NewCountryStore(ctx context.Context, db *mongo.Database) *CountryStore {
 func (s *CountryStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on countries.id",
+			"Failed creating index on countries._id",
 			"error", err,
 		)
 		return

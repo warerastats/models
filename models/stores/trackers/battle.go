@@ -10,7 +10,7 @@ import (
 )
 
 type Battle struct {
-	ID                bson.ObjectID   `bson:"id"`
+	ID                bson.ObjectID   `bson:"_id"`
 	AttackerRegionID  bson.ObjectID   `bson:"attackerRegionId"`
 	AttackerCountryID bson.ObjectID   `bson:"attackerCountryId"`
 	DefenderRegionID  bson.ObjectID   `bson:"defenderRegionId"`
@@ -33,12 +33,12 @@ func NewBattleStore(ctx context.Context, db *mongo.Database) *BattleStore {
 func (s *BattleStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on battles.id",
+			"Failed creating index on battles._id",
 			"error", err,
 		)
 		return

@@ -10,7 +10,7 @@ import (
 )
 
 type Item struct {
-	ID          bson.ObjectID      `bson:"id,omitempty"`
+	ID          bson.ObjectID      `bson:"_id,omitempty"`
 	ItemCode    string             `bson:"itemCode"`
 	Skills      map[string]float64 `bson:"skills"`
 	State       int                `bson:"state"`
@@ -38,7 +38,7 @@ func (s *ItemStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on items.itemCode & items.id",
+			"Failed creating index on items.itemCode",
 			"error", err,
 		)
 		return
@@ -59,12 +59,12 @@ func (s *ItemStore) ensureIndex(ctx context.Context) {
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: -1},
+			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on items.id",
+			"Failed creating index on items._id",
 			"error", err,
 		)
 		return
@@ -72,7 +72,7 @@ func (s *ItemStore) ensureIndex(ctx context.Context) {
 }
 
 func (s *ItemStore) Exists(ctx context.Context, id bson.ObjectID) (bool, error) {
-	count, err := s.coll.CountDocuments(ctx, bson.M{"id": id})
+	count, err := s.coll.CountDocuments(ctx, bson.M{"_id": id})
 	if err != nil {
 		return false, err
 	}
@@ -101,7 +101,7 @@ func (s *ItemStore) Create(
 func (s *ItemStore) SetOwnerUserID(ctx context.Context, id bson.ObjectID, ownerUserID bson.ObjectID) error {
 	_, err := s.coll.UpdateOne(
 		ctx,
-		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "_id", Value: id}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "ownerUserId", Value: ownerUserID}}}},
 	)
 	return err
@@ -110,7 +110,7 @@ func (s *ItemStore) SetOwnerUserID(ctx context.Context, id bson.ObjectID, ownerU
 func (s *ItemStore) SetStatus(ctx context.Context, id bson.ObjectID, status enums.ItemStatus) error {
 	_, err := s.coll.UpdateOne(
 		ctx,
-		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "_id", Value: id}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "status", Value: status}}}},
 	)
 	return err

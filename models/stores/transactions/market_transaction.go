@@ -10,7 +10,7 @@ import (
 )
 
 type MarketTransaction struct {
-	ID       bson.ObjectID `bson:"id"`
+	ID       bson.ObjectID `bson:"_id"`
 	SellerID bson.ObjectID `bson:"sellerId"`
 	BuyerID  bson.ObjectID `bson:"buyerId"`
 	ItemID   bson.ObjectID `bson:"itemId"`
@@ -88,7 +88,7 @@ func (s *MarketTransactionStore) Create(
 
 	_, err := s.coll.UpdateOne(
 		ctx,
-		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "_id", Value: id}},
 		bson.D{{Key: "$setOnInsert", Value: tx}},
 		options.UpdateOne().SetUpsert(true),
 	)

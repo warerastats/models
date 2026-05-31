@@ -9,7 +9,7 @@ import (
 )
 
 type Company struct {
-	ID       bson.ObjectID `bson:"id"`
+	ID       bson.ObjectID `bson:"_id"`
 	UserID   bson.ObjectID `bson:"userId"`
 	RegionID bson.ObjectID `bson:"regionId"`
 	ItemCode string        `bson:"itemCode"`
@@ -31,12 +31,12 @@ func NewCompanyStore(ctx context.Context, db *mongo.Database) *CompanyStore {
 func (s *CompanyStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "id", Value: 1},
+			{Key: "_id", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on companies.id",
+			"Failed creating index on companies._id",
 			"error", err,
 		)
 		return
