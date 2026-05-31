@@ -25,16 +25,19 @@ type UnprocessedCollection struct {
 }
 
 type TrackersCollection struct {
-	Item    *trackers.ItemStore
-	User    *trackers.UserStore
-	Country *trackers.CountryStore
-	Region  *trackers.RegionStore
-	Party   *trackers.PartyStore
-	Mu      *trackers.MuStore
-	Battle  *trackers.BattleStore
-	Damage  *trackers.DamageStore
-	Order   *trackers.OrderStore
-	Skill   *trackers.SkillStore
+	Item      *trackers.ItemStore
+	User      *trackers.UserStore
+	Country   *trackers.CountryStore
+	Region    *trackers.RegionStore
+	Party     *trackers.PartyStore
+	Mu        *trackers.MuStore
+	Battle    *trackers.BattleStore
+	Damage    *trackers.DamageStore
+	Order     *trackers.OrderStore
+	Skill     *trackers.SkillStore
+	Company   *trackers.CompanyStore
+	Employee  *trackers.EmployeeStore
+	ItemOffer *trackers.ItemOfferStore
 }
 
 func Init(context.Context) (*Collections, error) {
@@ -74,16 +77,19 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 		},
 
 		Trackers: TrackersCollection{
-			Item:    trackers.NewItemStore(ctx, db),
-			User:    trackers.NewUserStore(ctx, db),
-			Country: trackers.NewCountryStore(ctx, db),
-			Region:  trackers.NewRegionStore(ctx, db),
-			Party:   trackers.NewPartyStore(ctx, db),
-			Mu:      trackers.NewMuStore(ctx, db),
-			Battle:  trackers.NewBattleStore(ctx, db),
-			Damage:  trackers.NewDamageStore(ctx, db),
-			Order:   trackers.NewOrderStore(ctx, db),
-			Skill:   trackers.NewSkillStore(ctx, db),
+			Item:      trackers.NewItemStore(ctx, db),
+			User:      trackers.NewUserStore(ctx, db),
+			Country:   trackers.NewCountryStore(ctx, db),
+			Region:    trackers.NewRegionStore(ctx, db),
+			Party:     trackers.NewPartyStore(ctx, db),
+			Mu:        trackers.NewMuStore(ctx, db),
+			Battle:    trackers.NewBattleStore(ctx, db),
+			Damage:    trackers.NewDamageStore(ctx, db),
+			Order:     trackers.NewOrderStore(ctx, db),
+			Skill:     trackers.NewSkillStore(ctx, db),
+			Company:   trackers.NewCompanyStore(ctx, db),
+			Employee:  trackers.NewEmployeeStore(ctx, db),
+			ItemOffer: trackers.NewItemOfferStore(ctx, db),
 		},
 	}
 }
