@@ -1,4 +1,4 @@
-package unprocessed
+package transactions
 
 import (
 	"context"

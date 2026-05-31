@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/warerastats/models/models/stores/trackers"
-	"github.com/warerastats/models/models/stores/unprocessed"
+	"github.com/warerastats/models/models/stores/transactions"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
@@ -21,7 +21,7 @@ type Collections struct {
 }
 
 type UnprocessedCollection struct {
-	CaseTransaction *unprocessed.CaseTransactionStore
+	CaseTransaction *transactions.CaseTransactionStore
 }
 
 type TrackersCollection struct {
@@ -73,7 +73,7 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 		client: db.Client(),
 
 		Unprocessed: UnprocessedCollection{
-			CaseTransaction: unprocessed.NewCaseTransactionStore(ctx, db),
+			CaseTransaction: transactions.NewCaseTransactionStore(ctx, db),
 		},
 
 		Trackers: TrackersCollection{
