@@ -10,8 +10,7 @@ import (
 )
 
 type Skill struct {
-	// Self generated
-	ID     bson.ObjectID `bson:"id"`
+	ID     bson.ObjectID `bson:"id,omitempty"`
 	UserID bson.ObjectID `bson:"userId"`
 	Skills UserSkills    `bson:"skills"`
 	Since  time.Time     `bson:"since"`

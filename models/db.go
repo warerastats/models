@@ -16,12 +16,18 @@ import (
 type Collections struct {
 	client *mongo.Client
 
-	Unprocessed UnprocessedCollection
-	Trackers    TrackersCollection
+	Transactions TransactionsCollection
+	Trackers     TrackersCollection
 }
 
-type UnprocessedCollection struct {
-	CaseTransaction *transactions.CaseTransactionStore
+type TransactionsCollection struct {
+	CaseTransaction      *transactions.CaseTransactionStore
+	CraftTransaction     *transactions.CraftTransactionStore
+	DismantleTransaction *transactions.DismantleTransactionStore
+	LootTransaction      *transactions.LootTransactionStore
+	MarketTransaction    *transactions.MarketTransactionStore
+	TradeTransaction     *transactions.TradeTransactionStore
+	WageTransaction      *transactions.WageTransactionStore
 }
 
 type TrackersCollection struct {
@@ -72,8 +78,14 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 	return &Collections{
 		client: db.Client(),
 
-		Unprocessed: UnprocessedCollection{
-			CaseTransaction: transactions.NewCaseTransactionStore(ctx, db),
+		Transactions: TransactionsCollection{
+			CaseTransaction:      transactions.NewCaseTransactionStore(ctx, db),
+			CraftTransaction:     transactions.NewCraftTransactionStore(ctx, db),
+			DismantleTransaction: transactions.NewDismantleTransactionStore(ctx, db),
+			LootTransaction:      transactions.NewLootTransactionStore(ctx, db),
+			MarketTransaction:    transactions.NewMarketTransactionStore(ctx, db),
+			TradeTransaction:     transactions.NewTradeTransactionStore(ctx, db),
+			WageTransaction:      transactions.NewWageTransactionStore(ctx, db),
 		},
 
 		Trackers: TrackersCollection{

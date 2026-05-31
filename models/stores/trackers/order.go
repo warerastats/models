@@ -11,8 +11,7 @@ import (
 )
 
 type Order struct {
-	// Basically the only place where we generate our own ID
-	ID            bson.ObjectID  `bson:"id"`
+	ID            bson.ObjectID  `bson:"id,omitempty"`
 	BattleID      bson.ObjectID  `bson:"battleId"`
 	Side          enums.Side     `bson:"side"`
 	ActiveSince   time.Time      `bson:"activeSince"`

@@ -9,7 +9,7 @@ import (
 )
 
 type CaseTransaction struct {
-	ID     bson.ObjectID `bson:"id,omitempty"`
+	ID     bson.ObjectID `bson:"id"`
 	Case   string        `bson:"case"`
 	UserID string        `bson:"userId"`
 	ItemID bson.ObjectID `bson:"itemId"`
@@ -31,7 +31,6 @@ func (s *CaseTransactionStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "userId", Value: 1},
-			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {
@@ -45,27 +44,11 @@ func (s *CaseTransactionStore) ensureIndex(ctx context.Context) {
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "itemId", Value: 1},
-			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {
 		slog.Error(
 			"Failed creating index on case_transactions.itemId & case_transactions._id",
-			"error", err,
-		)
-		return
-	}
-
-	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "itemId", Value: 1},
-			{Key: "userId", Value: 1},
-			{Key: "_id", Value: -1},
-		},
-	})
-	if err != nil {
-		slog.Error(
-			"Failed creating index on case_transactions.itemId & case_transactions.userId & case_transactions._id",
 			"error", err,
 		)
 		return
