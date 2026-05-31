@@ -2,6 +2,7 @@ package trackers
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -24,6 +25,7 @@ type User struct {
 	CompanyID     bson.ObjectID      `bson:"companyId"`
 	PartyID       bson.ObjectID      `bson:"partyId"`
 	MuID          bson.ObjectID      `bson:"muId"`
+	LatestObject  json.RawMessage    `bson:"raw"`
 }
 
 type UserSkills struct {

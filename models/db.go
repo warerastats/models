@@ -25,8 +25,10 @@ type UnprocessedCollection struct {
 }
 
 type TrackersCollection struct {
-	Item *trackers.ItemStore
-	User *trackers.UserStore
+	Item    *trackers.ItemStore
+	User    *trackers.UserStore
+	Country *trackers.CountryStore
+	Region  *trackers.RegionStore
 }
 
 func Init(context.Context) (*Collections, error) {
@@ -66,8 +68,10 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 		},
 
 		Trackers: TrackersCollection{
-			Item: trackers.NewItemStore(ctx, db),
-			User: trackers.NewUserStore(ctx, db),
+			Item:    trackers.NewItemStore(ctx, db),
+			User:    trackers.NewUserStore(ctx, db),
+			Country: trackers.NewCountryStore(ctx, db),
+			Region:  trackers.NewRegionStore(ctx, db),
 		},
 	}
 }
