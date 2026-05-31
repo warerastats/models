@@ -6,6 +6,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type TradeTransaction struct {
@@ -75,4 +76,43 @@ func (s *TradeTransactionStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *TradeTransactionStore) Create(
+	ctx context.Context,
+	id bson.ObjectID,
+	sellerID bson.ObjectID,
+	buyerID bson.ObjectID,
+	sellerMuID *bson.ObjectID,
+	buyerMuID *bson.ObjectID,
+	sellerCountryID *bson.ObjectID,
+	buyerCountryID *bson.ObjectID,
+	itemOfferID *bson.ObjectID,
+	itemCode string,
+	money float64,
+	quantity int,
+	timeTillSale int64,
+) error {
+	tx := TradeTransaction{
+		ID:              id,
+		SellerID:        sellerID,
+		BuyerID:         buyerID,
+		SellerMuID:      sellerMuID,
+		BuyerMuID:       buyerMuID,
+		SellerCountryID: sellerCountryID,
+		BuyerCountryID:  buyerCountryID,
+		ItemOfferID:     itemOfferID,
+		ItemCode:        itemCode,
+		Money:           money,
+		Quantity:        quantity,
+		TimeTillSale:    timeTillSale,
+	}
+
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "$setOnInsert", Value: tx}},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
 }

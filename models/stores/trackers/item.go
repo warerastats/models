@@ -34,12 +34,11 @@ func (s *ItemStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "itemCode", Value: 1},
-			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on items.itemCode & items._id",
+			"Failed creating index on items.itemCode & items.id",
 			"error", err,
 		)
 		return
@@ -57,4 +56,44 @@ func (s *ItemStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "id", Value: -1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating index on items.id",
+			"error", err,
+		)
+		return
+	}
+}
+
+func (s *ItemStore) Exists(ctx context.Context, id bson.ObjectID) (bool, error) {
+	count, err := s.coll.CountDocuments(ctx, bson.M{"id": id})
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *ItemStore) Create(
+	ctx context.Context,
+	id bson.ObjectID,
+	itemCode string,
+	skills map[string]float64,
+	ownerUserID bson.ObjectID) error {
+
+	item := Item{
+		ID:          id,
+		ItemCode:    itemCode,
+		Skills:      skills,
+		State:       100,
+		Status:      enums.PERFECT,
+		OwnerUserID: ownerUserID,
+	}
+	_, err := s.coll.InsertOne(ctx, item)
+	return err
 }

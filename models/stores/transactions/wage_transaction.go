@@ -6,14 +6,15 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type WageTransaction struct {
-	ID              bson.ObjectID `bson:"id"`
-	EmployeeID      bson.ObjectID `bson:"employeeId"`
-	EmployerID      bson.ObjectID `bson:"employerId"`
-	Money           float64       `bson:"money"`
-	ProductionPoint int           `bson:"quantity"`
+	ID               bson.ObjectID `bson:"id"`
+	EmployeeID       bson.ObjectID `bson:"employeeId"`
+	EmployerID       bson.ObjectID `bson:"employerId"`
+	Money            float64       `bson:"money"`
+	ProductionPoints int           `bson:"quantity"`
 }
 
 type WageTransactionStore struct {
@@ -54,4 +55,29 @@ func (s *WageTransactionStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *WageTransactionStore) Create(
+	ctx context.Context,
+	id bson.ObjectID,
+	employeeID bson.ObjectID,
+	employerID bson.ObjectID,
+	money float64,
+	productionPoints int,
+) error {
+	tx := WageTransaction{
+		ID:               id,
+		EmployeeID:       employeeID,
+		EmployerID:       employerID,
+		Money:            money,
+		ProductionPoints: productionPoints,
+	}
+
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "$setOnInsert", Value: tx}},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
 }

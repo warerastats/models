@@ -6,6 +6,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type CraftTransaction struct {
@@ -53,4 +54,27 @@ func (s *CraftTransactionStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *CraftTransactionStore) Create(
+	ctx context.Context,
+	id bson.ObjectID,
+	userID bson.ObjectID,
+	itemID bson.ObjectID,
+	scrapsCost int,
+) error {
+	tx := CraftTransaction{
+		ID:         id,
+		UserID:     userID,
+		ItemID:     itemID,
+		ScrapsCost: scrapsCost,
+	}
+
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "$setOnInsert", Value: tx}},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
 }

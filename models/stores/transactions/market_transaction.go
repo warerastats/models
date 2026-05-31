@@ -6,6 +6,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type MarketTransaction struct {
@@ -67,4 +68,29 @@ func (s *MarketTransactionStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *MarketTransactionStore) Create(
+	ctx context.Context,
+	id bson.ObjectID,
+	sellerID bson.ObjectID,
+	buyerID bson.ObjectID,
+	itemID bson.ObjectID,
+	money float64,
+) error {
+	tx := MarketTransaction{
+		ID:       id,
+		SellerID: sellerID,
+		BuyerID:  buyerID,
+		ItemID:   itemID,
+		Money:    money,
+	}
+
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "id", Value: id}},
+		bson.D{{Key: "$setOnInsert", Value: tx}},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
 }
