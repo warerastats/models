@@ -2,6 +2,7 @@ package trackers
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -23,6 +24,7 @@ type Party struct {
 		Imperialism   int `bson:"imperialism"`
 		Industrialism int `bson:"industrialism"`
 	} `bson:"ethics"`
+	LatestObject json.RawMessage `bson:"raw"`
 }
 
 type PartyStore struct {

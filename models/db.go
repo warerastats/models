@@ -31,6 +31,10 @@ type TrackersCollection struct {
 	Region  *trackers.RegionStore
 	Party   *trackers.PartyStore
 	Mu      *trackers.MuStore
+	Battle  *trackers.BattleStore
+	Damage  *trackers.DamageStore
+	Order   *trackers.OrderStore
+	Skill   *trackers.SkillStore
 }
 
 func Init(context.Context) (*Collections, error) {
@@ -76,6 +80,10 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			Region:  trackers.NewRegionStore(ctx, db),
 			Party:   trackers.NewPartyStore(ctx, db),
 			Mu:      trackers.NewMuStore(ctx, db),
+			Battle:  trackers.NewBattleStore(ctx, db),
+			Damage:  trackers.NewDamageStore(ctx, db),
+			Order:   trackers.NewOrderStore(ctx, db),
+			Skill:   trackers.NewSkillStore(ctx, db),
 		},
 	}
 }

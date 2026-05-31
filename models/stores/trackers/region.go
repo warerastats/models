@@ -2,6 +2,7 @@ package trackers
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -18,6 +19,7 @@ type Region struct {
 	IsLinkedToCapital bool            `bson:"isLinkedToCapital"`
 	Resistance        int             `bson:"resistance"`
 	MaxResistance     int             `bson:"maxResistance"`
+	LatestObject      json.RawMessage `bson:"raw"`
 }
 
 type RegionStore struct {

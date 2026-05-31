@@ -9,3 +9,10 @@ const (
 	BROKEN     ItemStatus = "BROKEN"
 	DISMANTLED ItemStatus = "DISMANTLED"
 )
+
+type Side string
+
+const (
+	ATTACKER Side = "ATTACKER"
+	DEFENDER Side = "DEFENDER"
+)

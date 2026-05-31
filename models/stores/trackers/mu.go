@@ -2,6 +2,7 @@ package trackers
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -9,14 +10,15 @@ import (
 )
 
 type Mu struct {
-	ID                  bson.ObjectID `bson:"id"`
-	OwnerUserID         bson.ObjectID `bson:"userId"`
-	RegionID            bson.ObjectID `bson:"regionId"`
-	Name                string        `bson:"name"`
-	AvatarUrl           string        `bson:"avatarUrl"`
-	HeadQuarterLevel    int           `bson:"hq"`
-	DormitoriesLevel    int           `bson:"dorms"`
-	MercenaryReputation float64       `bson:"mercRep"`
+	ID                  bson.ObjectID   `bson:"id"`
+	OwnerUserID         bson.ObjectID   `bson:"userId"`
+	RegionID            bson.ObjectID   `bson:"regionId"`
+	Name                string          `bson:"name"`
+	AvatarUrl           string          `bson:"avatarUrl"`
+	HeadQuarterLevel    int             `bson:"hq"`
+	DormitoriesLevel    int             `bson:"dorms"`
+	MercenaryReputation float64         `bson:"mercRep"`
+	LatestObject        json.RawMessage `bson:"raw"`
 }
 
 type MuStore struct {

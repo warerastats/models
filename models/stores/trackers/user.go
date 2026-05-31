@@ -18,31 +18,14 @@ type User struct {
 	AvatarUrl     string             `bson:"avatarUrl"`
 	LastDate      time.Time          `bson:"lastDate"`
 	OnlineTime    time.Time          `bson:"onlineTime"`
-	Skills        UserSkills         `bson:"skills"`
 	Wealth        map[string]float64 `bson:"wealth"`
 	CaseOpenings  UserCaseStats      `bson:"caseStats"`
 	CountryID     bson.ObjectID      `bson:"countryId"`
 	CompanyID     bson.ObjectID      `bson:"companyId"`
 	PartyID       bson.ObjectID      `bson:"partyId"`
 	MuID          bson.ObjectID      `bson:"muId"`
+	MilitaryRank  int                `bson:"militaryRank"`
 	LatestObject  json.RawMessage    `bson:"raw"`
-}
-
-type UserSkills struct {
-	Energy           int `bson:"energy"`
-	Health           int `bson:"health"`
-	Hunger           int `bson:"hunger"`
-	Attack           int `bson:"attack"`
-	Companies        int `bson:"companies"`
-	Entrepreneurship int `bson:"entrepreneurship"`
-	Production       int `bson:"production"`
-	CriticalChance   int `bson:"criticalChance"`
-	CriticalDamages  int `bson:"criticalDamages"`
-	Armor            int `bson:"armor"`
-	Precision        int `bson:"precision"`
-	Dodge            int `bson:"dodge"`
-	LootChance       int `bson:"lootChance"`
-	Management       int `bson:"management"`
 }
 
 type UserCaseStats struct {
