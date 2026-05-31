@@ -36,7 +36,7 @@ func (s *DismantleTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on dismantle_transactions.userId & dismantle_transactions._id",
+			"Failed creating index on dismantle_transactions.userId",
 			"error", err,
 		)
 		return
@@ -49,7 +49,7 @@ func (s *DismantleTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on dismantle_transactions.itemId & dismantle_transactions._id",
+			"Failed creating index on dismantle_transactions.itemId",
 			"error", err,
 		)
 		return

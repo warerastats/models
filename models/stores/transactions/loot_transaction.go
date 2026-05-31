@@ -35,7 +35,7 @@ func (s *LootTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on loot_transactions.userId & loot_transactions._id",
+			"Failed creating index on loot_transactions.userId",
 			"error", err,
 		)
 		return
@@ -48,7 +48,7 @@ func (s *LootTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on loot_transactions.itemId & loot_transactions._id",
+			"Failed creating index on loot_transactions.itemId",
 			"error", err,
 		)
 		return

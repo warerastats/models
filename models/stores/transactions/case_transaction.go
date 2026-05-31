@@ -36,7 +36,7 @@ func (s *CaseTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on case_transactions.userId & case_transactions._id",
+			"Failed creating index on case_transactions.userId",
 			"error", err,
 		)
 		return
@@ -49,7 +49,7 @@ func (s *CaseTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on case_transactions.itemId & case_transactions._id",
+			"Failed creating index on case_transactions.itemId",
 			"error", err,
 		)
 		return

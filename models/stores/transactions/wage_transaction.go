@@ -37,7 +37,7 @@ func (s *WageTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on wage_transactions.employeeId & wage_transactions._id",
+			"Failed creating index on wage_transactions.employeeId",
 			"error", err,
 		)
 		return
@@ -50,7 +50,7 @@ func (s *WageTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on wage_transactions.employerId & wage_transactions._id",
+			"Failed creating index on wage_transactions.employerId",
 			"error", err,
 		)
 		return

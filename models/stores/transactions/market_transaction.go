@@ -37,7 +37,7 @@ func (s *MarketTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on market_transactions.sellerId & market_transactions._id",
+			"Failed creating index on market_transactions.sellerId",
 			"error", err,
 		)
 		return
@@ -50,7 +50,7 @@ func (s *MarketTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on market_transactions.buyerId & market_transactions._id",
+			"Failed creating index on market_transactions.buyerId",
 			"error", err,
 		)
 		return
@@ -63,7 +63,7 @@ func (s *MarketTransactionStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on market_transactions.itemId & market_transactions._id",
+			"Failed creating index on market_transactions.itemId",
 			"error", err,
 		)
 		return
