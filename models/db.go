@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/warerastats/models/models/stores/events"
 	"github.com/warerastats/models/models/stores/states"
 	"github.com/warerastats/models/models/stores/trackers"
 	"github.com/warerastats/models/models/stores/transactions"
@@ -20,6 +21,16 @@ type Collections struct {
 	Transactions TransactionsCollection
 	Trackers     TrackersCollection
 	States       StatesCollection
+	Events       EventsCollection
+}
+
+type EventsCollection struct {
+	UserMUChange      *events.UserMUChangeStore
+	UserNameChange    *events.UserNameChangeStore
+	UserPartyChange   *events.UserPartyChangeStore
+	UserCompanyChange *events.UserCompanyChangeStore
+	UserCountryChange *events.UserCountryChangeStore
+	UserSkillChange   *events.UserSkillChangeStore
 }
 
 type StatesCollection struct {
@@ -112,6 +123,15 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 
 		States: StatesCollection{
 			ScraperState: states.NewScraperStateStore(ctx, db),
+		},
+
+		Events: EventsCollection{
+			UserMUChange:      events.NewUserMUChangeStore(ctx, db),
+			UserNameChange:    events.NewUserNameChangeStore(ctx, db),
+			UserPartyChange:   events.NewUserPartyChangeStore(ctx, db),
+			UserCompanyChange: events.NewUserCompanyChangeStore(ctx, db),
+			UserCountryChange: events.NewUserCountryChangeStore(ctx, db),
+			UserSkillChange:   events.NewUserSkillChangeStore(ctx, db),
 		},
 	}
 }
