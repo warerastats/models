@@ -12,21 +12,21 @@ import (
 )
 
 type User struct {
-	ID            bson.ObjectID      `bson:"_id,omitempty"`
-	Username      string             `bson:"username"`
-	UsernameLower string             `bson:"usernameLower"`
-	Level         int                `bson:"level"`
-	AvatarUrl     string             `bson:"avatarUrl"`
-	LastDate      time.Time          `bson:"lastDate"`
-	OnlineTime    time.Time          `bson:"onlineTime"`
-	Wealth        map[string]float64 `bson:"wealth"`
-	CaseOpenings  UserCaseStats      `bson:"caseStats"`
-	CountryID     bson.ObjectID      `bson:"countryId"`
-	CompanyID     bson.ObjectID      `bson:"companyId"`
-	PartyID       bson.ObjectID      `bson:"partyId"`
-	MuID          bson.ObjectID      `bson:"muId"`
-	MilitaryRank  int                `bson:"militaryRank"`
-	LatestObject  json.RawMessage    `bson:"raw"`
+	ID            bson.ObjectID            `bson:"_id,omitempty"`
+	Username      string                   `bson:"username"`
+	UsernameLower string                   `bson:"usernameLower"`
+	Level         int                      `bson:"level"`
+	AvatarUrl     string                   `bson:"avatarUrl"`
+	LastDate      time.Time                `bson:"lastDate"`
+	OnlineTime    time.Time                `bson:"onlineTime"`
+	Wealth        map[string]float64       `bson:"wealth"`
+	CaseOpenings  map[string]UserCaseStats `bson:"caseStats"`
+	CountryID     bson.ObjectID            `bson:"countryId"`
+	CompanyID     bson.ObjectID            `bson:"companyId"`
+	PartyID       bson.ObjectID            `bson:"partyId"`
+	MuID          bson.ObjectID            `bson:"muId"`
+	MilitaryRank  int                      `bson:"militaryRank"`
+	LatestObject  json.RawMessage          `bson:"raw"`
 }
 
 type UserCaseStats struct {
