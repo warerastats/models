@@ -55,9 +55,13 @@ func (s *ScraperStateStore) Get(ctx context.Context) *ScraperState {
 	return &state
 }
 
-func (s *ScraperState) Set(ctx context.Context) {
-	_, err := s.coll.ReplaceOne(ctx, bson.D{{Key: "_id", Value: s.ID}}, s)
+func (s *ScraperState) SetLastTransaction(ctx context.Context, t time.Time) {
+	s.LastTransaction = t
+	_, err := s.coll.UpdateOne(ctx,
+		bson.D{{Key: "_id", Value: s.ID}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "lastTransaction", Value: t}}}},
+	)
 	if err != nil {
-		slog.Error("Failed setting scraper_state", "error", err)
+		slog.Error("Failed setting scraper_state.lastTransaction", "error", err)
 	}
 }

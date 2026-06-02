@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type User struct {
@@ -75,4 +76,78 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *UserStore) Exists(ctx context.Context, ids []bson.ObjectID) ([]bson.ObjectID, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}},
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	existing := make(map[bson.ObjectID]struct{}, len(ids))
+	for cursor.Next(ctx) {
+		var result struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, err
+		}
+		existing[result.ID] = struct{}{}
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	var missing []bson.ObjectID
+	for _, id := range ids {
+		if _, ok := existing[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	return missing, nil
+}
+
+func (s *UserStore) CreateEmpty(ctx context.Context, id bson.ObjectID) error {
+	_, err := s.coll.InsertOne(ctx, User{ID: id})
+	return err
+}
+
+func (s *UserStore) GetEmpty(ctx context.Context) ([]bson.ObjectID, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "usernameLower", Value: ""}},
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var result struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, err
+		}
+		ids = append(ids, result.ID)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *UserStore) UpsertUser(ctx context.Context, id bson.ObjectID, data User) error {
+	data.ID = id
+	_, err := s.coll.ReplaceOne(ctx,
+		bson.D{{Key: "_id", Value: id}},
+		data,
+		options.Replace().SetUpsert(true),
+	)
+	return err
 }
