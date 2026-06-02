@@ -22,9 +22,9 @@ type User struct {
 	Wealth        map[string]float64       `bson:"wealth"`
 	CaseOpenings  map[string]UserCaseStats `bson:"caseStats"`
 	CountryID     bson.ObjectID            `bson:"countryId"`
-	CompanyID     bson.ObjectID            `bson:"companyId"`
-	PartyID       bson.ObjectID            `bson:"partyId"`
-	MuID          bson.ObjectID            `bson:"muId"`
+	CompanyID     *bson.ObjectID           `bson:"companyId,omitempty"`
+	PartyID       *bson.ObjectID           `bson:"partyId,omitempty"`
+	MuID          *bson.ObjectID           `bson:"muId,omitempty"`
 	MilitaryRank  int                      `bson:"militaryRank"`
 	LatestObject  json.RawMessage          `bson:"raw"`
 }
