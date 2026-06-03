@@ -11,6 +11,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+// UserInactivityThreshold is the maximum gap between LastUpdated and LastDate
+// after which a user is presumed inactive and excluded from on-the-fly
+// refreshes.
+const UserInactivityThreshold = 14 * 24 * time.Hour
+
 type User struct {
 	ID            bson.ObjectID            `bson:"_id,omitempty"`
 	Username      string                   `bson:"username"`
@@ -18,6 +23,7 @@ type User struct {
 	Level         int                      `bson:"level"`
 	AvatarUrl     string                   `bson:"avatarUrl"`
 	LastDate      time.Time                `bson:"lastDate"`
+	LastUpdated   time.Time                `bson:"lastUpdated,omitempty"`
 	OnlineTime    time.Time                `bson:"onlineTime"`
 	Wealth        map[string]float64       `bson:"wealth"`
 	CaseOpenings  map[string]UserCaseStats `bson:"caseStats"`
@@ -26,6 +32,7 @@ type User struct {
 	PartyID       *bson.ObjectID           `bson:"partyId,omitempty"`
 	MuID          *bson.ObjectID           `bson:"muId,omitempty"`
 	MilitaryRank  int                      `bson:"militaryRank"`
+	Skills        map[string]int           `bson:"skills,omitempty"`
 	LatestObject  json.RawMessage          `bson:"raw"`
 }
 
@@ -61,20 +68,19 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 			"Failed creating index on users.usernameLower",
 			"error", err,
 		)
-		return
 	}
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "_id", Value: 1},
+			{Key: "lastUpdated", Value: 1},
+			{Key: "lastDate", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on users._id",
+			"Failed creating compound index on users.{lastUpdated,lastDate}",
 			"error", err,
 		)
-		return
 	}
 }
 
@@ -121,6 +127,80 @@ func (s *UserStore) GetEmpty(ctx context.Context) ([]bson.ObjectID, error) {
 		bson.D{{Key: "usernameLower", Value: ""}},
 		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var result struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, err
+		}
+		ids = append(ids, result.ID)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *UserStore) Get(ctx context.Context, id bson.ObjectID) (*User, error) {
+	var user User
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&user)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *UserStore) GetForRefresh(ctx context.Context, n int) ([]bson.ObjectID, error) {
+	if n <= 0 {
+		return nil, nil
+	}
+
+	thresholdMillis := int64(UserInactivityThreshold / time.Millisecond)
+
+	// Huge, right?
+	// It:
+	// - Skips empty users (still to be filled)
+	// - Skips "inactive" users
+	// - Gets the oldest first (oldest updated)
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
+		}}},
+		{{Key: "$match", Value: bson.D{
+			{Key: "$nor", Value: bson.A{
+				bson.D{
+					{Key: "lastUpdated", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
+					{Key: "lastDate", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
+					{Key: "$expr", Value: bson.D{{Key: "$gt", Value: bson.A{
+						bson.D{{Key: "$subtract", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+						thresholdMillis,
+					}}}},
+				},
+			}},
+		}}},
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "priorityFlag", Value: bson.D{{Key: "$cond", Value: bson.A{
+				bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+				0,
+				1,
+			}}}},
+		}}},
+		{{Key: "$sort", Value: bson.D{
+			{Key: "priorityFlag", Value: 1},
+			{Key: "lastUpdated", Value: 1},
+		}}},
+		{{Key: "$limit", Value: int64(n)}},
+		{{Key: "$project", Value: bson.D{{Key: "_id", Value: 1}}}},
+	}
+
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
