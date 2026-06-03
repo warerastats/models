@@ -18,8 +18,8 @@ type Region struct {
 	NeighborRegionIDs []bson.ObjectID `bson:"neighbors"`
 	IsCapital         bool            `bson:"isCapital"`
 	IsLinkedToCapital bool            `bson:"isLinkedToCapital"`
-	Resistance        int             `bson:"resistance"`
-	MaxResistance     int             `bson:"maxResistance"`
+	Resistance        float64         `bson:"resistance"`
+	MaxResistance     float64         `bson:"maxResistance"`
 	LatestObject      json.RawMessage `bson:"raw"`
 }
 
