@@ -7,6 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Region struct {
@@ -60,4 +61,23 @@ func (s *RegionStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *RegionStore) Get(ctx context.Context, id bson.ObjectID) (*Region, error) {
+	var region Region
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&region)
+	if err != nil {
+		return nil, err
+	}
+	return &region, nil
+}
+
+func (s *RegionStore) UpsertRegion(ctx context.Context, id bson.ObjectID, data Region) error {
+	data.ID = id
+	_, err := s.coll.ReplaceOne(ctx,
+		bson.D{{Key: "_id", Value: id}},
+		data,
+		options.Replace().SetUpsert(true),
+	)
+	return err
 }
