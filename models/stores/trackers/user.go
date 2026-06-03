@@ -157,22 +157,31 @@ func (s *UserStore) Get(ctx context.Context, id bson.ObjectID) (*User, error) {
 	return &user, nil
 }
 
-func (s *UserStore) GetForRefresh(ctx context.Context, n int) ([]bson.ObjectID, error) {
+func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.ObjectID) ([]bson.ObjectID, error) {
 	if n <= 0 {
 		return nil, nil
 	}
 
 	thresholdMillis := int64(UserInactivityThreshold / time.Millisecond)
 
+	matchUsername := bson.D{
+		{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
+	}
+	if len(exclude) > 0 {
+		matchUsername = append(matchUsername, bson.E{
+			Key:   "_id",
+			Value: bson.D{{Key: "$nin", Value: exclude}},
+		})
+	}
+
 	// Huge, right?
 	// It:
 	// - Skips empty users (still to be filled)
+	// - Skips users we're already refreshing (exclude)
 	// - Skips "inactive" users
 	// - Gets the oldest first (oldest updated)
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{
-			{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
-		}}},
+		{{Key: "$match", Value: matchUsername}},
 		{{Key: "$match", Value: bson.D{
 			{Key: "$nor", Value: bson.A{
 				bson.D{
