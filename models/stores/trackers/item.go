@@ -68,6 +68,16 @@ func (s *ItemStore) Exists(ctx context.Context, id bson.ObjectID) (bool, error) 
 	return count > 0, nil
 }
 
+// Callers should treat mongo.ErrNoDocuments as a normal "missing" signal, not a hard error.
+func (s *ItemStore) Get(ctx context.Context, id bson.ObjectID) (*Item, error) {
+	var item Item
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&item)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 func (s *ItemStore) Create(
 	ctx context.Context,
 	id bson.ObjectID,
