@@ -24,6 +24,7 @@ type User struct {
 	AvatarUrl     string                   `bson:"avatarUrl"`
 	LastDate      time.Time                `bson:"lastDate"`
 	LastUpdated   time.Time                `bson:"lastUpdated,omitempty"`
+	LastSeen      time.Time                `bson:"lastSeen,omitempty"`
 	OnlineTime    time.Time                `bson:"onlineTime"`
 	Wealth        map[string]float64       `bson:"wealth"`
 	CaseOpenings  map[string]UserCaseStats `bson:"caseStats"`
@@ -79,6 +80,16 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 	if err != nil {
 		slog.Error(
 			"Failed creating compound index on users.{lastUpdated,lastDate}",
+			"error", err,
+		)
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "lastSeen", Value: 1}},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating index on users.lastSeen",
 			"error", err,
 		)
 	}
@@ -157,12 +168,13 @@ func (s *UserStore) Get(ctx context.Context, id bson.ObjectID) (*User, error) {
 	return &user, nil
 }
 
-func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.ObjectID) ([]bson.ObjectID, error) {
+func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.ObjectID, recentThreshold time.Duration) ([]bson.ObjectID, error) {
 	if n <= 0 {
 		return nil, nil
 	}
 
 	thresholdMillis := int64(UserInactivityThreshold / time.Millisecond)
+	recentCutoff := time.Now().UTC().Add(-recentThreshold)
 
 	matchUsername := bson.D{
 		{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
@@ -178,8 +190,10 @@ func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.Obj
 	// It:
 	// - Skips empty users (still to be filled)
 	// - Skips users we're already refreshing (exclude)
-	// - Skips "inactive" users
-	// - Gets the oldest first (oldest updated)
+	// - Skips "inactive" users, UNLESS we've seen them recently
+	// - Top-priority bucket = either lastUpdated < lastDate (existing
+	//   heuristic) OR recently seen but not yet refreshed since
+	// - Within a bucket, oldest lastUpdated first
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: matchUsername}},
 		{{Key: "$match", Value: bson.D{
@@ -191,12 +205,22 @@ func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.Obj
 						bson.D{{Key: "$subtract", Value: bson.A{"$lastUpdated", "$lastDate"}}},
 						thresholdMillis,
 					}}}},
+					{Key: "$or", Value: bson.A{
+						bson.D{{Key: "lastSeen", Value: bson.D{{Key: "$exists", Value: false}}}},
+						bson.D{{Key: "lastSeen", Value: bson.D{{Key: "$lt", Value: recentCutoff}}}},
+					}},
 				},
 			}},
 		}}},
 		{{Key: "$addFields", Value: bson.D{
 			{Key: "priorityFlag", Value: bson.D{{Key: "$cond", Value: bson.A{
-				bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+				bson.D{{Key: "$or", Value: bson.A{
+					bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+					bson.D{{Key: "$and", Value: bson.A{
+						bson.D{{Key: "$gte", Value: bson.A{"$lastSeen", recentCutoff}}},
+						bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastSeen"}}},
+					}}},
+				}}},
 				0,
 				1,
 			}}}},
@@ -237,6 +261,20 @@ func (s *UserStore) UpsertUser(ctx context.Context, id bson.ObjectID, data User)
 		bson.D{{Key: "_id", Value: id}},
 		data,
 		options.Replace().SetUpsert(true),
+	)
+	return err
+}
+
+// MarkLastSeen sets lastSeen=now on every existing user in ids. Missing IDs
+// are silently skipped — they'll be created by the userqueue and marked on
+// the next flush.
+func (s *UserStore) MarkLastSeen(ctx context.Context, ids []bson.ObjectID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := s.coll.UpdateMany(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "lastSeen", Value: time.Now().UTC()}}}},
 	)
 	return err
 }
