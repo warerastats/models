@@ -2,24 +2,34 @@ package trackers
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"time"
 
+	"github.com/warerastats/models/models/enums"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type Damage struct {
-	ID           bson.ObjectID `bson:"_id,omitempty"`
-	BattleID     bson.ObjectID `bson:"battleId"`
-	UserID       bson.ObjectID `bson:"userId"`
-	WeaponID     bson.ObjectID `bson:"weaponId"`
-	HelmetID     bson.ObjectID `bson:"helmetId"`
-	ChestID      bson.ObjectID `bson:"chestId"`
-	PantsID      bson.ObjectID `bson:"pantsId"`
-	BootsID      bson.ObjectID `bson:"bootsId"`
-	GlovesID     bson.ObjectID `bson:"glovesId"`
-	SkillID      bson.ObjectID `bson:"skillId"`
-	MilitaryRank int           `bson:"militaryRank"`
+	ID           bson.ObjectID  `bson:"_id,omitempty"`
+	BattleID     bson.ObjectID  `bson:"battleId"`
+	Side         enums.Side     `bson:"side"`
+	UserID       bson.ObjectID  `bson:"userId"`
+	CountryID    bson.ObjectID  `bson:"countryId"`
+	MuID         *bson.ObjectID `bson:"muId,omitempty"`
+	PartyID      *bson.ObjectID `bson:"partyId,omitempty"`
+	WeaponID     *bson.ObjectID `bson:"weaponId,omitempty"`
+	Ammo         *string        `bson:"ammo,omitempty"`
+	HelmetID     *bson.ObjectID `bson:"helmetId,omitempty"`
+	ChestID      *bson.ObjectID `bson:"chestId,omitempty"`
+	PantsID      *bson.ObjectID `bson:"pantsId,omitempty"`
+	BootsID      *bson.ObjectID `bson:"bootsId,omitempty"`
+	GlovesID     *bson.ObjectID `bson:"glovesId,omitempty"`
+	SkillID      bson.ObjectID  `bson:"skillId"`
+	MilitaryRank int            `bson:"militaryRank"`
+	Damages      int            `bson:"damages"`
+	At           time.Time      `bson:"at"`
 }
 
 type DamageStore struct {
@@ -38,11 +48,12 @@ func (s *DamageStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "battleId", Value: 1},
+			{Key: "userId", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on damages.battleId",
+			"Failed creating compound index on damages.{battleId,userId}",
 			"error", err,
 		)
 		return
@@ -60,4 +71,48 @@ func (s *DamageStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+}
+
+func (s *DamageStore) Create(ctx context.Context, d Damage) (bson.ObjectID, error) {
+	res, err := s.coll.InsertOne(ctx, d)
+	if err != nil {
+		return bson.ObjectID{}, err
+	}
+	id, ok := res.InsertedID.(bson.ObjectID)
+	if !ok {
+		return bson.ObjectID{}, errors.New("damages insert returned non-ObjectID id")
+	}
+	return id, nil
+}
+
+func (s *DamageStore) GetUserBattleTotal(ctx context.Context, battleID, userID bson.ObjectID) (int, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "battleId", Value: battleID},
+			{Key: "userId", Value: userID},
+		}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(ctx)
+
+	if !cursor.Next(ctx) {
+		if err := cursor.Err(); err != nil {
+			return 0, err
+		}
+		return 0, nil
+	}
+	var result struct {
+		Total int `bson:"total"`
+	}
+	if err := cursor.Decode(&result); err != nil {
+		return 0, err
+	}
+	return result.Total, nil
 }

@@ -3,6 +3,7 @@ package transactions
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -32,11 +33,12 @@ func (s *DismantleTransactionStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "userId", Value: 1},
+			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on dismantle_transactions.userId",
+			"Failed creating compound index on dismantle_transactions.{userId,_id}",
 			"error", err,
 		)
 		return
@@ -77,4 +79,36 @@ func (s *DismantleTransactionStore) Create(
 		options.UpdateOne().SetUpsert(true),
 	)
 	return err
+}
+
+func (s *DismantleTransactionStore) GetByUserSince(
+	ctx context.Context,
+	userID bson.ObjectID,
+	since time.Time,
+) ([]DismantleTransaction, error) {
+	cutoff := bson.NewObjectIDFromTimestamp(since)
+	filter := bson.D{
+		{Key: "userId", Value: userID},
+		{Key: "_id", Value: bson.D{{Key: "$gte", Value: cutoff}}},
+	}
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().SetSort(bson.D{{Key: "_id", Value: -1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []DismantleTransaction
+	for cursor.Next(ctx) {
+		var tx DismantleTransaction
+		if err := cursor.Decode(&tx); err != nil {
+			return nil, err
+		}
+		out = append(out, tx)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

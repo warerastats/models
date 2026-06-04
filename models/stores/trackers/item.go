@@ -2,11 +2,13 @@ package trackers
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/warerastats/models/models/enums"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Item struct {
@@ -56,19 +58,6 @@ func (s *ItemStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
-
-	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "_id", Value: 1},
-		},
-	})
-	if err != nil {
-		slog.Error(
-			"Failed creating index on items._id",
-			"error", err,
-		)
-		return
-	}
 }
 
 func (s *ItemStore) Exists(ctx context.Context, id bson.ObjectID) (bool, error) {
@@ -84,17 +73,78 @@ func (s *ItemStore) Create(
 	id bson.ObjectID,
 	itemCode string,
 	skills map[string]float64,
-	ownerUserID bson.ObjectID) error {
+	ownerUserID bson.ObjectID,
+) error {
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "_id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "itemCode", Value: itemCode},
+			{Key: "skills", Value: skills},
+			{Key: "state", Value: 100},
+			{Key: "status", Value: enums.PERFECT},
+			{Key: "ownerUserId", Value: ownerUserID},
+		}}},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
+}
 
-	item := Item{
-		ID:          id,
-		ItemCode:    itemCode,
-		Skills:      skills,
-		State:       100,
-		Status:      enums.PERFECT,
-		OwnerUserID: ownerUserID,
+func (s *ItemStore) CreateEmpty(ctx context.Context, ids []bson.ObjectID) error {
+	if len(ids) == 0 {
+		return nil
 	}
-	_, err := s.coll.InsertOne(ctx, item)
+	models := make([]mongo.WriteModel, 0, len(ids))
+	for _, id := range ids {
+		models = append(models,
+			mongo.NewUpdateOneModel().
+				SetFilter(bson.D{{Key: "_id", Value: id}}).
+				SetUpdate(bson.D{{Key: "$setOnInsert", Value: bson.D{
+					{Key: "itemCode", Value: ""},
+				}}}).
+				SetUpsert(true),
+		)
+	}
+	_, err := s.coll.BulkWrite(ctx, models, options.BulkWrite().SetOrdered(false))
+	if err != nil {
+		var bwe mongo.BulkWriteException
+		if errors.As(err, &bwe) {
+			for _, we := range bwe.WriteErrors {
+				if we.Code != 11000 {
+					return err
+				}
+			}
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *ItemStore) UpsertEquipment(
+	ctx context.Context,
+	id bson.ObjectID,
+	itemCode string,
+	skills map[string]float64,
+	state int,
+	ownerUserID bson.ObjectID,
+) error {
+	status := enums.PERFECT
+	if state != 100 {
+		status = enums.USED
+	}
+	_, err := s.coll.UpdateOne(
+		ctx,
+		bson.D{{Key: "_id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "itemCode", Value: itemCode},
+			{Key: "skills", Value: skills},
+			{Key: "state", Value: state},
+			{Key: "status", Value: status},
+			{Key: "ownerUserId", Value: ownerUserID},
+		}}},
+		options.UpdateOne().SetUpsert(true),
+	)
 	return err
 }
 

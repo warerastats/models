@@ -21,6 +21,7 @@ type Battle struct {
 	DefenderDamages   int             `bson:"defenderDamages"`
 	WinnerSide        *string         `bson:"winnerSide,omitempty"`
 	IsActive          bool            `bson:"active"`
+	EndedAt           *time.Time      `bson:"endedAt,omitempty"`
 	LastUpdated       time.Time       `bson:"updated"`
 	LatestObject      json.RawMessage `bson:"raw"`
 }
@@ -58,6 +59,19 @@ func (s *BattleStore) ensureIndex(ctx context.Context) {
 	if err != nil {
 		slog.Error(
 			"Failed creating index on battles.active",
+			"error", err,
+		)
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "winnerSide", Value: 1},
+			{Key: "_id", Value: 1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on battles.{winnerSide,_id}",
 			"error", err,
 		)
 	}
@@ -117,6 +131,59 @@ func (s *BattleStore) MarkInactive(ctx context.Context, ids []bson.ObjectID) err
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "active", Value: false},
 			{Key: "updated", Value: time.Now().UTC()},
+		}}},
+	)
+	return err
+}
+
+func (s *BattleStore) GetInScope(ctx context.Context, since time.Time) ([]bson.ObjectID, error) {
+	cutoff := bson.NewObjectIDFromTimestamp(since)
+	filter := bson.D{
+		{Key: "winnerSide", Value: nil},
+		{Key: "_id", Value: bson.D{{Key: "$gte", Value: cutoff}}},
+	}
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var result struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&result); err != nil {
+			return nil, err
+		}
+		ids = append(ids, result.ID)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *BattleStore) SetWinner(
+	ctx context.Context,
+	id bson.ObjectID,
+	winnerSide string,
+	endedAt time.Time,
+	attackerDamages, defenderDamages int,
+	raw json.RawMessage,
+) error {
+	_, err := s.coll.UpdateOne(ctx,
+		bson.D{{Key: "_id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "winnerSide", Value: winnerSide},
+			{Key: "endedAt", Value: endedAt},
+			{Key: "attackerDamages", Value: attackerDamages},
+			{Key: "defenderDamages", Value: defenderDamages},
+			{Key: "active", Value: false},
+			{Key: "updated", Value: time.Now().UTC()},
+			{Key: "raw", Value: raw},
 		}}},
 	)
 	return err
