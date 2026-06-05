@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-type ItemOffer struct {
+type MarketOffer struct {
 	ID        bson.ObjectID `bson:"_id"`
 	UserID    bson.ObjectID `bson:"userId"`
 	ItemCode  string        `bson:"itemCode"`
@@ -20,19 +20,19 @@ type ItemOffer struct {
 	Since     time.Time     `bson:"since"`
 }
 
-type ItemOfferStore struct {
+type MarketOfferStore struct {
 	coll *mongo.Collection
 }
 
-func NewItemOfferStore(ctx context.Context, db *mongo.Database) *ItemOfferStore {
-	store := &ItemOfferStore{
-		coll: db.Collection("itemOffers"),
+func NewMarketOfferStore(ctx context.Context, db *mongo.Database) *MarketOfferStore {
+	store := &MarketOfferStore{
+		coll: db.Collection("MarketOffers"),
 	}
 	store.ensureIndex(ctx)
 	return store
 }
 
-func (s *ItemOfferStore) ensureIndex(ctx context.Context) {
+func (s *MarketOfferStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "_id", Value: 1},
@@ -40,7 +40,7 @@ func (s *ItemOfferStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on itemOffers._id",
+			"Failed creating index on MarketOffers._id",
 			"error", err,
 		)
 		return
@@ -53,7 +53,7 @@ func (s *ItemOfferStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on itemOffers.userId",
+			"Failed creating index on MarketOffers.userId",
 			"error", err,
 		)
 		return
@@ -66,7 +66,7 @@ func (s *ItemOfferStore) ensureIndex(ctx context.Context) {
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on itemOffers.itemCode",
+			"Failed creating index on MarketOffers.itemCode",
 			"error", err,
 		)
 		return
