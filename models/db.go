@@ -39,6 +39,10 @@ type EventsCollection struct {
 
 	CountryRulingPartyChange    *events.CountryRulingPartyChangeStore
 	CountrySpecialisationChange *events.CountrySpecialisationChangeStore
+
+	CompanyRegionChange   *events.CompanyRegionChangeStore
+	CompanyItemCodeChange *events.CompanyItemCodeChangeStore
+	EmployeeWageChange    *events.EmployeeWageChangeStore
 }
 
 type StatesCollection struct {
@@ -148,6 +152,10 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 
 			CountryRulingPartyChange:    events.NewCountryRulingPartyChangeStore(ctx, db),
 			CountrySpecialisationChange: events.NewCountrySpecialisationChangeStore(ctx, db),
+
+			CompanyRegionChange:   events.NewCompanyRegionChangeStore(ctx, db),
+			CompanyItemCodeChange: events.NewCompanyItemCodeChangeStore(ctx, db),
+			EmployeeWageChange:    events.NewEmployeeWageChangeStore(ctx, db),
 		},
 	}
 }

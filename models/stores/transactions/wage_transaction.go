@@ -3,6 +3,7 @@ package transactions
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -80,4 +81,28 @@ func (s *WageTransactionStore) Create(
 		options.UpdateOne().SetUpsert(true),
 	)
 	return err
+}
+
+// DistinctEmployees returns the set of employeeIds appearing in
+// wage_transactions whose _id falls in (since, until]. Range is computed
+// from ObjectID timestamps so no extra index is needed.
+func (s *WageTransactionStore) DistinctEmployees(ctx context.Context, since, until time.Time) ([]bson.ObjectID, error) {
+	minID := bson.NewObjectIDFromTimestamp(since)
+	maxID := bson.NewObjectIDFromTimestamp(until)
+
+	filter := bson.D{{Key: "_id", Value: bson.D{
+		{Key: "$gt", Value: minID},
+		{Key: "$lte", Value: maxID},
+	}}}
+
+	res := s.coll.Distinct(ctx, "employeeId", filter)
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+
+	var ids []bson.ObjectID
+	if err := res.Decode(&ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }

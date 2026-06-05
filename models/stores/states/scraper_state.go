@@ -10,9 +10,10 @@ import (
 )
 
 type ScraperState struct {
-	ID               bson.ObjectID `bson:"_id,omitempty"`
-	LastTransaction  time.Time     `bson:"lastTransaction"`
-	TrackBattlesFrom time.Time     `bson:"trackBattlesFrom,omitempty"`
+	ID                  bson.ObjectID `bson:"_id,omitempty"`
+	LastTransaction     time.Time     `bson:"lastTransaction"`
+	TrackBattlesFrom    time.Time     `bson:"trackBattlesFrom,omitempty"`
+	TrackEmploymentFrom time.Time     `bson:"trackEmploymentFrom,omitempty"`
 
 	coll *mongo.Collection
 }
@@ -37,8 +38,9 @@ func (s *ScraperStateStore) init(ctx context.Context) {
 	}
 	if count == 0 {
 		_, err := s.coll.InsertOne(ctx, ScraperState{
-			LastTransaction:  time.Time{},
-			TrackBattlesFrom: time.Now().UTC(),
+			LastTransaction:     time.Time{},
+			TrackBattlesFrom:    time.Now().UTC(),
+			TrackEmploymentFrom: time.Now().UTC(),
 		})
 		if err != nil {
 			slog.Error("Failed inserting initial scraper_state", "error", err)
@@ -68,6 +70,19 @@ func (s *ScraperStateStore) Get(ctx context.Context) *ScraperState {
 		}
 	}
 
+	if state.TrackEmploymentFrom.IsZero() {
+		now := time.Now().UTC()
+		_, err := s.coll.UpdateOne(ctx,
+			bson.D{{Key: "_id", Value: state.ID}},
+			bson.D{{Key: "$set", Value: bson.D{{Key: "trackEmploymentFrom", Value: now}}}},
+		)
+		if err != nil {
+			slog.Error("Failed initialising scraper_state.trackEmploymentFrom", "error", err)
+		} else {
+			state.TrackEmploymentFrom = now
+		}
+	}
+
 	return &state
 }
 
@@ -90,5 +105,16 @@ func (s *ScraperState) SetTrackBattlesFrom(ctx context.Context, t time.Time) {
 	)
 	if err != nil {
 		slog.Error("Failed setting scraper_state.trackBattlesFrom", "error", err)
+	}
+}
+
+func (s *ScraperState) SetTrackEmploymentFrom(ctx context.Context, t time.Time) {
+	s.TrackEmploymentFrom = t
+	_, err := s.coll.UpdateOne(ctx,
+		bson.D{{Key: "_id", Value: s.ID}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "trackEmploymentFrom", Value: t}}}},
+	)
+	if err != nil {
+		slog.Error("Failed setting scraper_state.trackEmploymentFrom", "error", err)
 	}
 }

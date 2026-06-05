@@ -265,6 +265,34 @@ func (s *UserStore) UpsertUser(ctx context.Context, id bson.ObjectID, data User)
 	return err
 }
 
+// DistinctCompanyIDs returns the set of non-nil companyIds across the given
+// user IDs. Used by the companies scheduler to discover which companies need
+// a refresh after a window of wage activity.
+func (s *UserStore) DistinctCompanyIDs(ctx context.Context, userIDs []bson.ObjectID) ([]bson.ObjectID, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+
+	filter := bson.D{
+		{Key: "_id", Value: bson.D{{Key: "$in", Value: userIDs}}},
+		{Key: "companyId", Value: bson.D{{Key: "$ne", Value: nil}}},
+	}
+
+	res := s.coll.Distinct(ctx, "companyId", filter)
+	err := res.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	var ids []bson.ObjectID
+	err = res.Decode(&ids)
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
 // MarkLastSeen sets lastSeen=now on every existing user in ids. Missing IDs
 // are silently skipped — they'll be created by the userqueue and marked on
 // the next flush.
