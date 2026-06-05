@@ -96,12 +96,14 @@ func (s *WageTransactionStore) DistinctEmployees(ctx context.Context, since, unt
 	}}}
 
 	res := s.coll.Distinct(ctx, "employeeId", filter)
-	if err := res.Err(); err != nil {
+	err := res.Err()
+	if err != nil {
 		return nil, err
 	}
 
 	var ids []bson.ObjectID
-	if err := res.Decode(&ids); err != nil {
+	err = res.Decode(&ids)
+	if err != nil {
 		return nil, err
 	}
 	return ids, nil

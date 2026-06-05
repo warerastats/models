@@ -102,13 +102,18 @@ func (s *DismantleTransactionStore) GetByUserSince(
 	var out []DismantleTransaction
 	for cursor.Next(ctx) {
 		var tx DismantleTransaction
-		if err := cursor.Decode(&tx); err != nil {
+		err = cursor.Decode(&tx)
+		if err != nil {
 			return nil, err
 		}
+
 		out = append(out, tx)
 	}
-	if err := cursor.Err(); err != nil {
+
+	err = cursor.Err()
+	if err != nil {
 		return nil, err
 	}
+
 	return out, nil
 }

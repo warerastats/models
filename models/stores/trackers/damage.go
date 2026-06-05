@@ -105,16 +105,22 @@ func (s *DamageStore) GetUserBattleTotal(ctx context.Context, battleID, userID b
 	defer cursor.Close(ctx)
 
 	if !cursor.Next(ctx) {
-		if err := cursor.Err(); err != nil {
+		err = cursor.Err()
+
+		if err != nil {
 			return 0, err
 		}
+
 		return 0, nil
 	}
 	var result struct {
 		Total int `bson:"total"`
 	}
-	if err := cursor.Decode(&result); err != nil {
+
+	err = cursor.Decode(&result)
+	if err != nil {
 		return 0, err
 	}
+
 	return result.Total, nil
 }

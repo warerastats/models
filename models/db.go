@@ -93,7 +93,8 @@ func Init(context.Context) (*Collections, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+	err = client.Ping(ctx, readpref.Primary())
+	if err != nil {
 		return nil, err
 	}
 

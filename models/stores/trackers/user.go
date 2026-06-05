@@ -110,12 +110,17 @@ func (s *UserStore) Exists(ctx context.Context, ids []bson.ObjectID) ([]bson.Obj
 		var result struct {
 			ID bson.ObjectID `bson:"_id"`
 		}
-		if err := cursor.Decode(&result); err != nil {
+
+		err = cursor.Decode(&result)
+		if err != nil {
 			return nil, err
 		}
+
 		existing[result.ID] = struct{}{}
 	}
-	if err := cursor.Err(); err != nil {
+
+	err = cursor.Err()
+	if err != nil {
 		return nil, err
 	}
 
@@ -148,14 +153,20 @@ func (s *UserStore) GetEmpty(ctx context.Context) ([]bson.ObjectID, error) {
 		var result struct {
 			ID bson.ObjectID `bson:"_id"`
 		}
-		if err := cursor.Decode(&result); err != nil {
+
+		err = cursor.Decode(&result)
+		if err != nil {
 			return nil, err
 		}
+
 		ids = append(ids, result.ID)
 	}
-	if err := cursor.Err(); err != nil {
+
+	err = cursor.Err()
+	if err != nil {
 		return nil, err
 	}
+
 	return ids, nil
 }
 
@@ -244,14 +255,20 @@ func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.Obj
 		var result struct {
 			ID bson.ObjectID `bson:"_id"`
 		}
-		if err := cursor.Decode(&result); err != nil {
+
+		err = cursor.Decode(&result)
+		if err != nil {
 			return nil, err
 		}
+
 		ids = append(ids, result.ID)
 	}
-	if err := cursor.Err(); err != nil {
+
+	err = cursor.Err()
+	if err != nil {
 		return nil, err
 	}
+
 	return ids, nil
 }
 

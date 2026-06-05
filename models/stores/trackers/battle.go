@@ -111,14 +111,20 @@ func (s *BattleStore) GetActiveIDs(ctx context.Context) ([]bson.ObjectID, error)
 		var result struct {
 			ID bson.ObjectID `bson:"_id"`
 		}
-		if err := cursor.Decode(&result); err != nil {
+
+		err := cursor.Decode(&result)
+		if err != nil {
 			return nil, err
 		}
+
 		ids = append(ids, result.ID)
 	}
-	if err := cursor.Err(); err != nil {
+
+	err = cursor.Err()
+	if err != nil {
 		return nil, err
 	}
+
 	return ids, nil
 }
 
@@ -155,14 +161,20 @@ func (s *BattleStore) GetInScope(ctx context.Context, since time.Time) ([]bson.O
 		var result struct {
 			ID bson.ObjectID `bson:"_id"`
 		}
-		if err := cursor.Decode(&result); err != nil {
+
+		err = cursor.Decode(&result)
+		if err != nil {
 			return nil, err
 		}
+
 		ids = append(ids, result.ID)
 	}
-	if err := cursor.Err(); err != nil {
+
+	err = cursor.Err()
+	if err != nil {
 		return nil, err
 	}
+
 	return ids, nil
 }
 
