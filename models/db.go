@@ -68,7 +68,6 @@ type TrackersCollection struct {
 	Mu        *trackers.MuStore
 	Battle    *trackers.BattleStore
 	Damage    *trackers.DamageStore
-	Order     *trackers.OrderStore
 	Skill     *trackers.SkillStore
 	Company   *trackers.CompanyStore
 	Employee  *trackers.EmployeeStore
@@ -126,7 +125,6 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			Mu:        trackers.NewMuStore(ctx, db),
 			Battle:    trackers.NewBattleStore(ctx, db),
 			Damage:    trackers.NewDamageStore(ctx, db),
-			Order:     trackers.NewOrderStore(ctx, db),
 			Skill:     trackers.NewSkillStore(ctx, db),
 			Company:   trackers.NewCompanyStore(ctx, db),
 			Employee:  trackers.NewEmployeeStore(ctx, db),
