@@ -16,3 +16,10 @@ const (
 	ATTACKER Side = "ATTACKER"
 	DEFENDER Side = "DEFENDER"
 )
+
+type MarketSide string
+
+const (
+	BUY  MarketSide = "BUY"
+	SELL MarketSide = "SELL"
+)
