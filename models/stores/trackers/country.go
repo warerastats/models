@@ -20,7 +20,7 @@ type Country struct {
 		Market   float64 `bson:"market"`
 		SelfWork float64 `bson:"selfWork"`
 	} `bson:"taxes"`
-	SpecialisationItemCode string          `bson:"specialisation,omitempty"`
+	SpecialisationItemCode *string         `bson:"specialisation,omitempty"`
 	RulingPartyID          *bson.ObjectID  `bson:"rulingPartyId,omitempty"`
 	LatestObject           json.RawMessage `bson:"raw"`
 }
