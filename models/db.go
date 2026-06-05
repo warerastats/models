@@ -36,6 +36,9 @@ type EventsCollection struct {
 	RegionDeposit           *events.RegionDepositStore
 	RegionStrategicResource *events.RegionStrategicResourceStore
 	BattleOrderChange       *events.BattleOrderChangeStore
+
+	CountryRulingPartyChange    *events.CountryRulingPartyChangeStore
+	CountrySpecialisationChange *events.CountrySpecialisationChangeStore
 }
 
 type StatesCollection struct {
@@ -142,6 +145,9 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			RegionDeposit:           events.NewRegionDepositStore(ctx, db),
 			RegionStrategicResource: events.NewRegionStrategicResourceStore(ctx, db),
 			BattleOrderChange:       events.NewBattleOrderChangeStore(ctx, db),
+
+			CountryRulingPartyChange:    events.NewCountryRulingPartyChangeStore(ctx, db),
+			CountrySpecialisationChange: events.NewCountrySpecialisationChangeStore(ctx, db),
 		},
 	}
 }
