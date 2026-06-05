@@ -60,18 +60,18 @@ type TransactionsCollection struct {
 }
 
 type TrackersCollection struct {
-	Item        *trackers.ItemStore
-	User        *trackers.UserStore
-	Country     *trackers.CountryStore
-	Region      *trackers.RegionStore
-	Party       *trackers.PartyStore
-	Mu          *trackers.MuStore
-	Battle      *trackers.BattleStore
-	Damage      *trackers.DamageStore
-	Skill       *trackers.SkillStore
-	Company     *trackers.CompanyStore
-	Employee    *trackers.EmployeeStore
-	MarketOffer *trackers.MarketOfferStore
+	Item       *trackers.ItemStore
+	User       *trackers.UserStore
+	Country    *trackers.CountryStore
+	Region     *trackers.RegionStore
+	Party      *trackers.PartyStore
+	Mu         *trackers.MuStore
+	Battle     *trackers.BattleStore
+	Damage     *trackers.DamageStore
+	Skill      *trackers.SkillStore
+	Company    *trackers.CompanyStore
+	Employee   *trackers.EmployeeStore
+	TradeOffer *trackers.TradeOfferStore
 }
 
 func Init(context.Context) (*Collections, error) {
@@ -117,18 +117,18 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 		},
 
 		Trackers: TrackersCollection{
-			Item:        trackers.NewItemStore(ctx, db),
-			User:        trackers.NewUserStore(ctx, db),
-			Country:     trackers.NewCountryStore(ctx, db),
-			Region:      trackers.NewRegionStore(ctx, db),
-			Party:       trackers.NewPartyStore(ctx, db),
-			Mu:          trackers.NewMuStore(ctx, db),
-			Battle:      trackers.NewBattleStore(ctx, db),
-			Damage:      trackers.NewDamageStore(ctx, db),
-			Skill:       trackers.NewSkillStore(ctx, db),
-			Company:     trackers.NewCompanyStore(ctx, db),
-			Employee:    trackers.NewEmployeeStore(ctx, db),
-			MarketOffer: trackers.NewMarketOfferStore(ctx, db),
+			Item:       trackers.NewItemStore(ctx, db),
+			User:       trackers.NewUserStore(ctx, db),
+			Country:    trackers.NewCountryStore(ctx, db),
+			Region:     trackers.NewRegionStore(ctx, db),
+			Party:      trackers.NewPartyStore(ctx, db),
+			Mu:         trackers.NewMuStore(ctx, db),
+			Battle:     trackers.NewBattleStore(ctx, db),
+			Damage:     trackers.NewDamageStore(ctx, db),
+			Skill:      trackers.NewSkillStore(ctx, db),
+			Company:    trackers.NewCompanyStore(ctx, db),
+			Employee:   trackers.NewEmployeeStore(ctx, db),
+			TradeOffer: trackers.NewTradeOfferStore(ctx, db),
 		},
 
 		States: StatesCollection{

@@ -17,9 +17,9 @@ const (
 	DEFENDER Side = "DEFENDER"
 )
 
-type MarketSide string
+type TradeSide string
 
 const (
-	BUY  MarketSide = "BUY"
-	SELL MarketSide = "SELL"
+	BUY  TradeSide = "BUY"
+	SELL TradeSide = "SELL"
 )

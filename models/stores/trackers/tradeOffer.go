@@ -12,46 +12,46 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-type MarketOffer struct {
-	ID          bson.ObjectID    `bson:"_id"`
-	UserID      bson.ObjectID    `bson:"userId"`
-	CountryID   *bson.ObjectID   `bson:"countryId,omitempty"`
-	MuID        *bson.ObjectID   `bson:"muId,omitempty"`
-	ItemCode    string           `bson:"itemCode"`
-	Side        enums.MarketSide `bson:"side"`
-	Quantity    int              `bson:"quantity"`
-	Fulfilled   int              `bson:"fulfilled"`
-	Cancelled   bool             `bson:"cancelled"`
-	Price       float64          `bson:"price"`
-	Since       time.Time        `bson:"since"`
-	LastUpdated time.Time        `bson:"lastUpdated"`
+type TradeOffer struct {
+	ID          bson.ObjectID   `bson:"_id"`
+	UserID      bson.ObjectID   `bson:"userId"`
+	CountryID   *bson.ObjectID  `bson:"countryId,omitempty"`
+	MuID        *bson.ObjectID  `bson:"muId,omitempty"`
+	ItemCode    string          `bson:"itemCode"`
+	Side        enums.TradeSide `bson:"side"`
+	Quantity    int             `bson:"quantity"`
+	Fulfilled   int             `bson:"fulfilled"`
+	Cancelled   bool            `bson:"cancelled"`
+	Price       float64         `bson:"price"`
+	Since       time.Time       `bson:"since"`
+	LastUpdated time.Time       `bson:"lastUpdated"`
 }
 
-type MarketOfferStore struct {
+type TradeOfferStore struct {
 	coll *mongo.Collection
 }
 
-func NewMarketOfferStore(ctx context.Context, db *mongo.Database) *MarketOfferStore {
-	store := &MarketOfferStore{
-		coll: db.Collection("market_offers"),
+func NewTradeOfferStore(ctx context.Context, db *mongo.Database) *TradeOfferStore {
+	store := &TradeOfferStore{
+		coll: db.Collection("trade_offers"),
 	}
 	store.ensureIndex(ctx)
 	return store
 }
 
-func (s *MarketOfferStore) ensureIndex(ctx context.Context) {
+func (s *TradeOfferStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "userId", Value: 1}},
 	})
 	if err != nil {
-		slog.Error("Failed creating index on market_offers.userId", "error", err)
+		slog.Error("Failed creating index on trade_offers.userId", "error", err)
 	}
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "itemCode", Value: 1}},
 	})
 	if err != nil {
-		slog.Error("Failed creating index on market_offers.itemCode", "error", err)
+		slog.Error("Failed creating index on trade_offers.itemCode", "error", err)
 	}
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
@@ -63,7 +63,7 @@ func (s *MarketOfferStore) ensureIndex(ctx context.Context) {
 		},
 	})
 	if err != nil {
-		slog.Error("Failed creating compound index on market_offers (itemCode, side, userId, since)", "error", err)
+		slog.Error("Failed creating compound index on trade_offers (itemCode, side, userId, since)", "error", err)
 	}
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
@@ -74,7 +74,7 @@ func (s *MarketOfferStore) ensureIndex(ctx context.Context) {
 		},
 	})
 	if err != nil {
-		slog.Error("Failed creating compound index on market_offers (itemCode, side, cancelled)", "error", err)
+		slog.Error("Failed creating compound index on trade_offers (itemCode, side, cancelled)", "error", err)
 	}
 }
 
@@ -97,14 +97,14 @@ func objectIDOrNull(p *bson.ObjectID) any {
 //
 // Returns wasInsert = true when the doc did not previously exist, so callers
 // can run ReconcileSynthetic to absorb a trade-derived placeholder.
-func (s *MarketOfferStore) UpsertFromAPI(
+func (s *TradeOfferStore) UpsertFromAPI(
 	ctx context.Context,
 	id bson.ObjectID,
 	userID bson.ObjectID,
 	countryID *bson.ObjectID,
 	muID *bson.ObjectID,
 	itemCode string,
-	side enums.MarketSide,
+	side enums.TradeSide,
 	apiRemaining int,
 	price float64,
 	since time.Time,
@@ -151,14 +151,14 @@ func (s *MarketOfferStore) UpsertFromAPI(
 // FindByMatch returns the offer (if any) for a given (userID, itemCode, side, since).
 // Used by the trading ingester to locate the maker offer.
 // Returns mongo.ErrNoDocuments cleanly when nothing matches.
-func (s *MarketOfferStore) FindByMatch(
+func (s *TradeOfferStore) FindByMatch(
 	ctx context.Context,
 	itemCode string,
-	side enums.MarketSide,
+	side enums.TradeSide,
 	since time.Time,
 	userID bson.ObjectID,
-) (*MarketOffer, error) {
-	var offer MarketOffer
+) (*TradeOffer, error) {
+	var offer TradeOffer
 	err := s.coll.FindOne(ctx, bson.D{
 		{Key: "itemCode", Value: itemCode},
 		{Key: "side", Value: side},
@@ -173,7 +173,7 @@ func (s *MarketOfferStore) FindByMatch(
 
 // RecordFill increments fulfilled by qty and raises quantity to at least the
 // new fulfilled value. Used when a TradeTransaction matches an existing offer.
-func (s *MarketOfferStore) RecordFill(ctx context.Context, id bson.ObjectID, qty int) error {
+func (s *TradeOfferStore) RecordFill(ctx context.Context, id bson.ObjectID, qty int) error {
 	now := time.Now().UTC()
 	pipeline := bson.A{
 		bson.M{"$set": bson.M{
@@ -191,20 +191,20 @@ func (s *MarketOfferStore) RecordFill(ctx context.Context, id bson.ObjectID, qty
 // CreateSynthetic idempotently inserts a placeholder offer for a trade we
 // observed before the API surfaced its real _id. The caller derives a
 // deterministic syntheticID from the trade ID so re-ingestion is a no-op.
-func (s *MarketOfferStore) CreateSynthetic(
+func (s *TradeOfferStore) CreateSynthetic(
 	ctx context.Context,
 	syntheticID bson.ObjectID,
 	userID bson.ObjectID,
 	countryID *bson.ObjectID,
 	muID *bson.ObjectID,
 	itemCode string,
-	side enums.MarketSide,
+	side enums.TradeSide,
 	price float64,
 	since time.Time,
 	tradedQty int,
 ) error {
 	now := time.Now().UTC()
-	doc := MarketOffer{
+	doc := TradeOffer{
 		ID:          syntheticID,
 		UserID:      userID,
 		CountryID:   countryID,
@@ -233,15 +233,15 @@ func (s *MarketOfferStore) CreateSynthetic(
 // synthetic. No-op when no synthetic exists. Sequential ops, no
 // transaction; the worst-case race is double-counting at most one fill,
 // which the next API sweep will self-heal.
-func (s *MarketOfferStore) ReconcileSynthetic(
+func (s *TradeOfferStore) ReconcileSynthetic(
 	ctx context.Context,
 	realID bson.ObjectID,
 	userID bson.ObjectID,
 	itemCode string,
-	side enums.MarketSide,
+	side enums.TradeSide,
 	since time.Time,
 ) error {
-	var synth MarketOffer
+	var synth TradeOffer
 	err := s.coll.FindOne(ctx, bson.D{
 		{Key: "_id", Value: bson.D{{Key: "$ne", Value: realID}}},
 		{Key: "itemCode", Value: itemCode},
@@ -282,10 +282,10 @@ func (s *MarketOfferStore) ReconcileSynthetic(
 // SELL → price < worstReturnedPrice (strictly cheaper than the worst returned),
 // BUY  → price > worstReturnedPrice (strictly more expensive than the worst).
 // Equal-priced offers are left untouched (strict band per design).
-func (s *MarketOfferStore) MarkCancelledOutsideBand(
+func (s *TradeOfferStore) MarkCancelledOutsideBand(
 	ctx context.Context,
 	itemCode string,
-	side enums.MarketSide,
+	side enums.TradeSide,
 	seenIDs []bson.ObjectID,
 	worstReturnedPrice *float64,
 	exhaustive bool,
