@@ -49,11 +49,12 @@ func (s *DamageStore) ensureIndex(ctx context.Context) {
 		Keys: bson.D{
 			{Key: "battleId", Value: 1},
 			{Key: "userId", Value: 1},
+			{Key: "side", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating compound index on damages.{battleId,userId}",
+			"Failed creating compound index on damages.{battleId,userId,side}",
 			"error", err,
 		)
 		return
@@ -85,11 +86,12 @@ func (s *DamageStore) Create(ctx context.Context, d Damage) (bson.ObjectID, erro
 	return id, nil
 }
 
-func (s *DamageStore) GetUserBattleTotal(ctx context.Context, battleID, userID bson.ObjectID) (int, error) {
+func (s *DamageStore) GetUserBattleTotal(ctx context.Context, battleID, userID bson.ObjectID, side enums.Side) (int, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{
 			{Key: "battleId", Value: battleID},
 			{Key: "userId", Value: userID},
+			{Key: "side", Value: side},
 		}}},
 		{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: nil},
