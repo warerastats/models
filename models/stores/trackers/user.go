@@ -323,3 +323,51 @@ func (s *UserStore) MarkLastSeen(ctx context.Context, ids []bson.ObjectID) error
 	)
 	return err
 }
+
+// MembersAllInactive reports whether every given user is both known (already
+// populated) and inactive. It returns false if any id is still an empty
+// placeholder, so callers never disband an entity on incomplete information. A
+// user counts as active when the gap between lastUpdated and lastDate stays
+// within UserInactivityThreshold (mirrors the GetForRefresh heuristic).
+func (s *UserStore) MembersAllInactive(ctx context.Context, ids []bson.ObjectID) (bool, error) {
+	unique := make([]bson.ObjectID, 0, len(ids))
+	seen := make(map[bson.ObjectID]struct{}, len(ids))
+	for _, id := range ids {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return false, nil
+	}
+
+	thresholdMillis := int64(UserInactivityThreshold / time.Millisecond)
+
+	known, err := s.coll.CountDocuments(ctx, bson.D{
+		{Key: "_id", Value: bson.D{{Key: "$in", Value: unique}}},
+		{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
+	})
+	if err != nil {
+		return false, err
+	}
+	if known < int64(len(unique)) {
+		// At least one member has not been populated yet; stay conservative.
+		return false, nil
+	}
+
+	active, err := s.coll.CountDocuments(ctx, bson.D{
+		{Key: "_id", Value: bson.D{{Key: "$in", Value: unique}}},
+		{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
+		{Key: "$expr", Value: bson.D{{Key: "$lte", Value: bson.A{
+			bson.D{{Key: "$subtract", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+			thresholdMillis,
+		}}}},
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return active == 0, nil
+}

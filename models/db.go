@@ -43,6 +43,15 @@ type EventsCollection struct {
 	CompanyRegionChange   *events.CompanyRegionChangeStore
 	CompanyItemCodeChange *events.CompanyItemCodeChangeStore
 	EmployeeWageChange    *events.EmployeeWageChangeStore
+
+	MuOwnerChange               *events.MuOwnerChangeStore
+	MuNameChange                *events.MuNameChangeStore
+	MuMercenaryReputationChange *events.MuMercenaryReputationChangeStore
+
+	PartyNameChange        *events.PartyNameChangeStore
+	PartyDescriptionChange *events.PartyDescriptionChangeStore
+	PartyLeaderChange      *events.PartyLeaderChangeStore
+	PartyEthicsChange      *events.PartyEthicsChangeStore
 }
 
 type StatesCollection struct {
@@ -155,6 +164,15 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			CompanyRegionChange:   events.NewCompanyRegionChangeStore(ctx, db),
 			CompanyItemCodeChange: events.NewCompanyItemCodeChangeStore(ctx, db),
 			EmployeeWageChange:    events.NewEmployeeWageChangeStore(ctx, db),
+
+			MuOwnerChange:               events.NewMuOwnerChangeStore(ctx, db),
+			MuNameChange:                events.NewMuNameChangeStore(ctx, db),
+			MuMercenaryReputationChange: events.NewMuMercenaryReputationChangeStore(ctx, db),
+
+			PartyNameChange:        events.NewPartyNameChangeStore(ctx, db),
+			PartyDescriptionChange: events.NewPartyDescriptionChangeStore(ctx, db),
+			PartyLeaderChange:      events.NewPartyLeaderChangeStore(ctx, db),
+			PartyEthicsChange:      events.NewPartyEthicsChangeStore(ctx, db),
 		},
 	}
 }

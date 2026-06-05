@@ -70,3 +70,24 @@ func (s *CountryStore) UpsertCountry(ctx context.Context, id bson.ObjectID, data
 	)
 	return err
 }
+
+// DistinctRulingPartyIDs returns the set of non-nil rulingPartyId values across
+// all tracked countries. Used by the party refresh scheduler to guarantee every
+// ruling party is re-fetched on a fixed cadence.
+func (s *CountryStore) DistinctRulingPartyIDs(ctx context.Context) ([]bson.ObjectID, error) {
+	res := s.coll.Distinct(ctx, "rulingPartyId", bson.D{
+		{Key: "rulingPartyId", Value: bson.D{{Key: "$ne", Value: nil}}},
+	})
+	err := res.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	var ids []bson.ObjectID
+	err = res.Decode(&ids)
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
