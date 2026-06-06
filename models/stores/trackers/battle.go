@@ -128,6 +128,45 @@ func (s *BattleStore) GetActiveIDs(ctx context.Context) ([]bson.ObjectID, error)
 	return ids, nil
 }
 
+// GetUnfinalized returns battles that were marked inactive by the region
+// reconciliation path but never finalised (winnerSide still nil). These are
+// typically battles that ended while the BattleRanking in-memory tracking map
+// was empty, so BattleFinalize never ran on them, leaving damages / endedAt / winnerSide unset.
+func (s *BattleStore) GetUnfinalized(ctx context.Context) ([]bson.ObjectID, error) {
+	filter := bson.D{
+		{Key: "active", Value: false},
+		{Key: "winnerSide", Value: nil},
+	}
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var result struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+
+		err = cursor.Decode(&result)
+		if err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, result.ID)
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
 func (s *BattleStore) MarkInactive(ctx context.Context, ids []bson.ObjectID) error {
 	if len(ids) == 0 {
 		return nil
