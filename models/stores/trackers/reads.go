@@ -124,16 +124,30 @@ func (s *BattleStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Battl
 
 // CountByCountry counts battles each country participated in as attacker or defender.
 func (s *BattleStore) CountByCountry(ctx context.Context) ([]CountryAgg, error) {
-	pipeline := mongo.Pipeline{
-		{{Key: "$project", Value: bson.D{
+	return s.countByCountry(ctx, nil)
+}
+
+// CountByCountryFinalized counts finalized (winner decided) battles per country.
+func (s *BattleStore) CountByCountryFinalized(ctx context.Context) ([]CountryAgg, error) {
+	return s.countByCountry(ctx, bson.D{{Key: "winnerSide", Value: bson.D{{Key: "$ne", Value: nil}}}})
+}
+
+// countByCountry counts battles per participating country, optionally filtered.
+func (s *BattleStore) countByCountry(ctx context.Context, match bson.D) ([]CountryAgg, error) {
+	pipeline := mongo.Pipeline{}
+	if len(match) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: match}})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$project", Value: bson.D{
 			{Key: "countries", Value: bson.A{"$attackerCountryId", "$defenderCountryId"}},
 		}}},
-		{{Key: "$unwind", Value: "$countries"}},
-		{{Key: "$group", Value: bson.D{
+		bson.D{{Key: "$unwind", Value: "$countries"}},
+		bson.D{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$countries"},
 			{Key: "memberCount", Value: bson.D{{Key: "$sum", Value: 1}}},
 		}}},
-	}
+	)
 	cursor, err := s.coll.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
@@ -146,6 +160,31 @@ func (s *BattleStore) CountByCountry(ctx context.Context) ([]CountryAgg, error) 
 		return nil, err
 	}
 	return out, nil
+}
+
+// GetFinalized returns the ids of all battles whose winner side has been set.
+func (s *BattleStore) GetFinalized(ctx context.Context) ([]bson.ObjectID, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "winnerSide", Value: bson.D{{Key: "$ne", Value: nil}}}},
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []bson.ObjectID
+	for cursor.Next(ctx) {
+		var r struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		err = cursor.Decode(&r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r.ID)
+	}
+	return out, cursor.Err()
 }
 
 // GetRange returns damage rows in (since, until] by the at field, ascending.

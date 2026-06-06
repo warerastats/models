@@ -319,6 +319,7 @@ func (s *MarketTransactionStore) GetEquipmentTradesRange(ctx context.Context, si
 // CaseDrop is one case opening joined with the dropped item's attributes.
 type CaseDrop struct {
 	ID       bson.ObjectID      `bson:"_id"`
+	UserID   bson.ObjectID      `bson:"userId"`
 	Case     string             `bson:"case"`
 	ItemCode string             `bson:"itemCode"`
 	Skills   map[string]float64 `bson:"skills"`
@@ -337,6 +338,7 @@ func (s *CaseTransactionStore) GetDropsRange(ctx context.Context, since, until t
 		}}},
 		{{Key: "$unwind", Value: "$item"}},
 		{{Key: "$project", Value: bson.D{
+			{Key: "userId", Value: "$userId"},
 			{Key: "case", Value: "$case"},
 			{Key: "itemCode", Value: "$item.itemCode"},
 			{Key: "skills", Value: "$item.skills"},

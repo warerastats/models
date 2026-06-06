@@ -65,3 +65,36 @@ func (s *WageCandleStore) BulkUpsert(ctx context.Context, candles []WageCandle) 
 	_, err := s.coll.BulkWrite(ctx, ops, options.BulkWrite().SetOrdered(false))
 	return err
 }
+
+// WeightedAvgRange returns the volume-weighted wage rate across candles whose
+// bucketStart falls in [since, until), and whether any volume was found.
+func (s *WageCandleStore) WeightedAvgRange(ctx context.Context, since, until time.Time) (float64, bool, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "bucketStart", Value: bson.D{{Key: "$gte", Value: since}, {Key: "$lt", Value: until}}},
+		}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "money", Value: bson.D{{Key: "$sum", Value: "$money"}}},
+			{Key: "volume", Value: bson.D{{Key: "$sum", Value: "$volume"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, false, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []struct {
+		Money  float64 `bson:"money"`
+		Volume int     `bson:"volume"`
+	}
+	err = cursor.All(ctx, &rows)
+	if err != nil {
+		return 0, false, err
+	}
+	if len(rows) == 0 || rows[0].Volume <= 0 {
+		return 0, false, nil
+	}
+	return rows[0].Money / float64(rows[0].Volume), true, nil
+}

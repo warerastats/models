@@ -38,7 +38,8 @@ type ProcessedCollection struct {
 }
 
 type ProcessedStatesCollection struct {
-	JobState *processedstates.JobStateStore
+	JobState      *processedstates.JobStateStore
+	CountedBattle *processedstates.CountedBattleStore
 }
 
 type ProcessedCandlesCollection struct {
@@ -197,7 +198,8 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 
 		Processed: ProcessedCollection{
 			States: ProcessedStatesCollection{
-				JobState: processedstates.NewJobStateStore(ctx, db),
+				JobState:      processedstates.NewJobStateStore(ctx, db),
+				CountedBattle: processedstates.NewCountedBattleStore(ctx, db),
 			},
 			Candles: ProcessedCandlesCollection{
 				ItemCandle: processedcandles.NewItemCandleStore(ctx, db),

@@ -55,6 +55,61 @@ func (s *BattleParticipationStore) Upsert(ctx context.Context, p UserBattleParti
 	return err
 }
 
+// IncrementDamage adds delta damage and negative-damage to a user's counters.
+func (s *BattleParticipationStore) IncrementDamage(ctx context.Context, userID bson.ObjectID, totalDamage, negativeDamage int64) error {
+	_, err := s.coll.UpdateOne(ctx,
+		bson.D{{Key: "_id", Value: userID}},
+		bson.D{
+			{Key: "$inc", Value: bson.D{
+				{Key: "totalDamage", Value: totalDamage},
+				{Key: "negativeDamage", Value: negativeDamage},
+			}},
+			{Key: "$set", Value: bson.D{{Key: "updatedAt", Value: time.Now().UTC()}}},
+		},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
+}
+
+// IncrementDismantle adds dismantled value and per-item-code counts to a user.
+func (s *BattleParticipationStore) IncrementDismantle(ctx context.Context, userID bson.ObjectID, valueDelta float64, countDeltas map[string]float64) error {
+	inc := bson.D{{Key: "dismantledValue", Value: valueDelta}}
+	for code, delta := range countDeltas {
+		inc = append(inc, bson.E{Key: "dismantledCount." + code, Value: delta})
+	}
+	_, err := s.coll.UpdateOne(ctx,
+		bson.D{{Key: "_id", Value: userID}},
+		bson.D{
+			{Key: "$inc", Value: inc},
+			{Key: "$set", Value: bson.D{{Key: "updatedAt", Value: time.Now().UTC()}}},
+		},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
+}
+
+// IncrementBattleCounters adds distinct-battle participation counts and sets the
+// current battle-count denominators for a user.
+func (s *BattleParticipationStore) IncrementBattleCounters(ctx context.Context, userID bson.ObjectID, battles, ownCountry, muOrder, ownCountryBattles, muOrderBattles int) error {
+	_, err := s.coll.UpdateOne(ctx,
+		bson.D{{Key: "_id", Value: userID}},
+		bson.D{
+			{Key: "$inc", Value: bson.D{
+				{Key: "battlesParticipated", Value: battles},
+				{Key: "ownCountryParticipated", Value: ownCountry},
+				{Key: "muOrderParticipated", Value: muOrder},
+			}},
+			{Key: "$set", Value: bson.D{
+				{Key: "ownCountryBattles", Value: ownCountryBattles},
+				{Key: "muOrderBattles", Value: muOrderBattles},
+				{Key: "updatedAt", Value: time.Now().UTC()},
+			}},
+		},
+		options.UpdateOne().SetUpsert(true),
+	)
+	return err
+}
+
 // Get returns a user's participation counters, or false when none exists.
 func (s *BattleParticipationStore) Get(ctx context.Context, userID bson.ObjectID) (*UserBattleParticipation, bool, error) {
 	var p UserBattleParticipation
