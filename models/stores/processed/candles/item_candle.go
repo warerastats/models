@@ -69,3 +69,88 @@ func (s *ItemCandleStore) BulkUpsert(ctx context.Context, candles []ItemCandle) 
 	_, err := s.coll.BulkWrite(ctx, ops, options.BulkWrite().SetOrdered(false))
 	return err
 }
+
+// ItemAvg is a per-item volume-weighted price over a window.
+type ItemAvg struct {
+	ItemCode    string  `bson:"_id"`
+	WeightedAvg float64 `bson:"weightedAvg"`
+	Volume      int     `bson:"volume"`
+}
+
+// WeightedAvgByItem returns the volume-weighted average price per item code
+// across candles whose bucketStart falls in [since, until).
+func (s *ItemCandleStore) WeightedAvgByItem(ctx context.Context, since, until time.Time) ([]ItemAvg, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "bucketStart", Value: bson.D{{Key: "$gte", Value: since}, {Key: "$lt", Value: until}}},
+		}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$itemCode"},
+			{Key: "money", Value: bson.D{{Key: "$sum", Value: "$money"}}},
+			{Key: "volume", Value: bson.D{{Key: "$sum", Value: "$volume"}}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "volume", Value: 1},
+			{Key: "weightedAvg", Value: bson.D{{Key: "$cond", Value: bson.A{
+				bson.D{{Key: "$gt", Value: bson.A{"$volume", 0}}},
+				bson.D{{Key: "$divide", Value: bson.A{"$money", "$volume"}}},
+				0,
+			}}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []ItemAvg
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ItemStats is per-item OHLC/volume rollup over a window of candles.
+type ItemStats struct {
+	ItemCode string  `bson:"_id"`
+	Open     float64 `bson:"open"`
+	Close    float64 `bson:"close"`
+	High     float64 `bson:"high"`
+	Low      float64 `bson:"low"`
+	Volume   int     `bson:"volume"`
+	Money    float64 `bson:"money"`
+}
+
+// StatsByItem returns per-item OHLC/volume stats across candles whose
+// bucketStart falls in [since, until), ordered open=first, close=last.
+func (s *ItemCandleStore) StatsByItem(ctx context.Context, since, until time.Time) ([]ItemStats, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "bucketStart", Value: bson.D{{Key: "$gte", Value: since}, {Key: "$lt", Value: until}}},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "bucketStart", Value: 1}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$itemCode"},
+			{Key: "open", Value: bson.D{{Key: "$first", Value: "$open"}}},
+			{Key: "close", Value: bson.D{{Key: "$last", Value: "$close"}}},
+			{Key: "high", Value: bson.D{{Key: "$max", Value: "$high"}}},
+			{Key: "low", Value: bson.D{{Key: "$min", Value: "$low"}}},
+			{Key: "volume", Value: bson.D{{Key: "$sum", Value: "$volume"}}},
+			{Key: "money", Value: bson.D{{Key: "$sum", Value: "$money"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []ItemStats
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

@@ -2,6 +2,7 @@ package reports
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -51,4 +52,17 @@ func (s *DismantleReportStore) Upsert(ctx context.Context, r DismantleReport) er
 		options.Replace().SetUpsert(true),
 	)
 	return err
+}
+
+// Get returns the hourly dismantle report for an id, or false when none exists.
+func (s *DismantleReportStore) Get(ctx context.Context, id string) (*DismantleReport, bool, error) {
+	var r DismantleReport
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&r)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &r, true, nil
 }

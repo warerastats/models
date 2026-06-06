@@ -2,6 +2,7 @@ package reports
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -55,4 +56,17 @@ func (s *CasesReportStore) Upsert(ctx context.Context, r CasesReport) error {
 		options.Replace().SetUpsert(true),
 	)
 	return err
+}
+
+// Get returns a case report, or false when none exists.
+func (s *CasesReportStore) Get(ctx context.Context, caseCode string) (*CasesReport, bool, error) {
+	var r CasesReport
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: caseCode}}).Decode(&r)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &r, true, nil
 }

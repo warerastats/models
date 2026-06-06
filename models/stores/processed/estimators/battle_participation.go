@@ -67,3 +67,34 @@ func (s *BattleParticipationStore) Get(ctx context.Context, userID bson.ObjectID
 	}
 	return &p, true, nil
 }
+
+// SumDamageForUsers returns the total cumulative damage across the given users.
+func (s *BattleParticipationStore) SumDamageForUsers(ctx context.Context, ids []bson.ObjectID) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$totalDamage"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []struct {
+		Total int64 `bson:"total"`
+	}
+	err = cursor.All(ctx, &rows)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return rows[0].Total, nil
+}
