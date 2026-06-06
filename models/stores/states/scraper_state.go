@@ -11,7 +11,7 @@ import (
 
 type ScraperState struct {
 	ID                  bson.ObjectID `bson:"_id,omitempty"`
-	LastTransaction     time.Time     `bson:"lastTransaction"`
+	LastTransaction     time.Time     `bson:"lastTransaction,omitempty"`
 	TrackBattlesFrom    time.Time     `bson:"trackBattlesFrom,omitempty"`
 	TrackEmploymentFrom time.Time     `bson:"trackEmploymentFrom,omitempty"`
 
@@ -56,6 +56,19 @@ func (s *ScraperStateStore) Get(ctx context.Context) *ScraperState {
 		return nil
 	}
 	state.coll = s.coll
+
+	if state.LastTransaction.IsZero() {
+		now := time.Now().UTC()
+		_, err := s.coll.UpdateOne(ctx,
+			bson.D{{Key: "_id", Value: state.ID}},
+			bson.D{{Key: "$set", Value: bson.D{{Key: "lastTransaction", Value: now}}}},
+		)
+		if err != nil {
+			slog.Error("Failed initialising scraper_state.lastTransaction", "error", err)
+		} else {
+			state.LastTransaction = now
+		}
+	}
 
 	if state.TrackBattlesFrom.IsZero() {
 		now := time.Now().UTC()
