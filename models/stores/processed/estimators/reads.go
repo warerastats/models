@@ -91,3 +91,23 @@ func (s *UserFlipStateStore) TopByProfit(ctx context.Context, limit int) ([]User
 	}
 	return out, nil
 }
+
+// GetRange returns daily inflation points whose dayStart falls in [from, to],
+// oldest first.
+func (s *InflationStore) GetRange(ctx context.Context, from, to time.Time) ([]InflationPoint, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "dayStart", Value: bson.D{{Key: "$gte", Value: from}, {Key: "$lte", Value: to}}}},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []InflationPoint
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
