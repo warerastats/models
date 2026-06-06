@@ -52,6 +52,11 @@ func (s *CountryFlipEventStore) Upsert(ctx context.Context, e CountryFlipEvent) 
 	return err
 }
 
+// ExistingIDs returns the set of flip-event _ids whose at falls in (since, until].
+func (s *CountryFlipEventStore) ExistingIDs(ctx context.Context, since, until time.Time) (map[bson.ObjectID]bool, error) {
+	return existingEventIDs(ctx, s.coll, since, until)
+}
+
 // CountryFlipState aggregates a country's flip performance for line graphs.
 type CountryFlipState struct {
 	CountryID   bson.ObjectID `bson:"_id"`

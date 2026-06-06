@@ -53,11 +53,17 @@ func (s *UserFlipEventStore) Upsert(ctx context.Context, e UserFlipEvent) error 
 	return err
 }
 
+// ExistingIDs returns the set of flip-event _ids whose at falls in (since, until].
+func (s *UserFlipEventStore) ExistingIDs(ctx context.Context, since, until time.Time) (map[bson.ObjectID]bool, error) {
+	return existingEventIDs(ctx, s.coll, since, until)
+}
+
 // UserFlipLot is one open buy lot awaiting a matching sell within the window.
 type UserFlipLot struct {
-	Quantity  int       `bson:"quantity"`
-	UnitPrice float64   `bson:"unitPrice"`
-	BoughtAt  time.Time `bson:"boughtAt"`
+	TradeID   bson.ObjectID `bson:"tradeId"`
+	Quantity  int           `bson:"quantity"`
+	UnitPrice float64       `bson:"unitPrice"`
+	BoughtAt  time.Time     `bson:"boughtAt"`
 }
 
 // UserFlipState holds a user's open buy lots and aggregate flip performance.

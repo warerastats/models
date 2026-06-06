@@ -17,11 +17,12 @@ type EquipmentUsage struct {
 	Value    float64 `bson:"value"`
 }
 
-// BattleDamageReport is a per-battle, per-2-minute-interval, per-entity damage row.
+// BattleDamageReport is a per-battle, per-2-minute-interval, per-side, per-entity damage row.
 type BattleDamageReport struct {
 	ID            string           `bson:"_id"`
 	BattleID      bson.ObjectID    `bson:"battleId"`
 	IntervalStart time.Time        `bson:"intervalStart"`
+	Side          string           `bson:"side"`
 	EntityType    string           `bson:"entityType"`
 	EntityID      bson.ObjectID    `bson:"entityId"`
 	Damage        int64            `bson:"damage"`
@@ -29,9 +30,9 @@ type BattleDamageReport struct {
 	Equipment     []EquipmentUsage `bson:"equipment"`
 }
 
-// BattleDamageReportID is the deterministic per-battle-interval-entity key.
-func BattleDamageReportID(battleID bson.ObjectID, intervalStart time.Time, entityType string, entityID bson.ObjectID) string {
-	return battleID.Hex() + "@" + intervalStart.UTC().Format(time.RFC3339) + "@" + entityType + "@" + entityID.Hex()
+// BattleDamageReportID is the deterministic per-battle-interval-side-entity key.
+func BattleDamageReportID(battleID bson.ObjectID, intervalStart time.Time, side, entityType string, entityID bson.ObjectID) string {
+	return battleID.Hex() + "@" + intervalStart.UTC().Format(time.RFC3339) + "@" + side + "@" + entityType + "@" + entityID.Hex()
 }
 
 type BattleDamageReportStore struct {

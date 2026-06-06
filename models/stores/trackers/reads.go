@@ -122,6 +122,32 @@ func (s *BattleStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Battl
 	return out, nil
 }
 
+// CountByCountry counts battles each country participated in as attacker or defender.
+func (s *BattleStore) CountByCountry(ctx context.Context) ([]CountryAgg, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$project", Value: bson.D{
+			{Key: "countries", Value: bson.A{"$attackerCountryId", "$defenderCountryId"}},
+		}}},
+		{{Key: "$unwind", Value: "$countries"}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$countries"},
+			{Key: "memberCount", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CountryAgg
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetRange returns damage rows in (since, until] by the at field, ascending.
 func (s *DamageStore) GetRange(ctx context.Context, since, until time.Time) ([]Damage, error) {
 	cursor, err := s.coll.Find(ctx,

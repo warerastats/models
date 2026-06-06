@@ -13,9 +13,10 @@ import (
 
 // InventoryLot is one FIFO purchase lot of a fungible item held by a country.
 type InventoryLot struct {
-	Quantity  int       `bson:"quantity"`
-	UnitPrice float64   `bson:"unitPrice"`
-	BoughtAt  time.Time `bson:"boughtAt"`
+	TradeID   bson.ObjectID `bson:"tradeId"`
+	Quantity  int           `bson:"quantity"`
+	UnitPrice float64       `bson:"unitPrice"`
+	BoughtAt  time.Time     `bson:"boughtAt"`
 }
 
 // CountryInventory holds a country's open FIFO lots per fungible item code.
