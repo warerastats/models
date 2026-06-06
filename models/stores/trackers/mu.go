@@ -16,6 +16,7 @@ type Mu struct {
 	OwnerUserID         bson.ObjectID   `bson:"userId"`
 	RegionID            bson.ObjectID   `bson:"regionId"`
 	Name                string          `bson:"name"`
+	NameLower           string          `bson:"nameLower"`
 	AvatarUrl           string          `bson:"avatarUrl"`
 	Level               int             `bson:"level"`
 	HeadQuarterLevel    int             `bson:"hq"`
@@ -37,12 +38,14 @@ func NewMuStore(ctx context.Context, db *mongo.Database) *MuStore {
 		coll: db.Collection("mus"),
 	}
 	store.ensureIndex(ctx)
+	store.migrate(ctx)
 	return store
 }
 
 func (s *MuStore) ensureIndex(ctx context.Context) {
 	indexes := []mongo.IndexModel{
 		{Keys: bson.D{{Key: "name", Value: 1}}},
+		{Keys: bson.D{{Key: "nameLower", Value: 1}}},
 		{Keys: bson.D{{Key: "lastUpdated", Value: 1}}},
 		{Keys: bson.D{{Key: "lastSeen", Value: 1}}},
 		{Keys: bson.D{{Key: "disbandedAt", Value: 1}}},
@@ -53,6 +56,22 @@ func (s *MuStore) ensureIndex(ctx context.Context) {
 			"Failed creating indexes on mus",
 			"error", err,
 		)
+	}
+}
+
+// migrate backfills fields for documents that were written before the field
+// existed.
+func (s *MuStore) migrate(ctx context.Context) {
+	_, err := s.coll.UpdateMany(ctx,
+		bson.D{{Key: "nameLower", Value: bson.D{{Key: "$exists", Value: false}}}},
+		mongo.Pipeline{
+			{{Key: "$set", Value: bson.D{
+				{Key: "nameLower", Value: bson.D{{Key: "$toLower", Value: "$name"}}},
+			}}},
+		},
+	)
+	if err != nil {
+		slog.Error("Failed backfilling mus.nameLower", "error", err)
 	}
 }
 
@@ -201,6 +220,7 @@ func (s *MuStore) UpsertMu(ctx context.Context, id bson.ObjectID, data Mu) error
 		{Key: "userId", Value: data.OwnerUserID},
 		{Key: "regionId", Value: data.RegionID},
 		{Key: "name", Value: data.Name},
+		{Key: "nameLower", Value: data.NameLower},
 		{Key: "avatarUrl", Value: data.AvatarUrl},
 		{Key: "level", Value: data.Level},
 		{Key: "hq", Value: data.HeadQuarterLevel},

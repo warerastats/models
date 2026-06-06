@@ -14,6 +14,7 @@ import (
 type Party struct {
 	ID            bson.ObjectID   `bson:"_id"`
 	Name          string          `bson:"name"`
+	NameLower     string          `bson:"nameLower"`
 	Description   string          `bson:"description"`
 	CountryID     bson.ObjectID   `bson:"countryId"`
 	RegionID      bson.ObjectID   `bson:"regionId"`
@@ -41,6 +42,7 @@ func NewPartyStore(ctx context.Context, db *mongo.Database) *PartyStore {
 		coll: db.Collection("parties"),
 	}
 	store.ensureIndex(ctx)
+	store.migrate(ctx)
 	return store
 }
 
@@ -48,6 +50,7 @@ func (s *PartyStore) ensureIndex(ctx context.Context) {
 	indexes := []mongo.IndexModel{
 		{Keys: bson.D{{Key: "countryId", Value: 1}}},
 		{Keys: bson.D{{Key: "name", Value: 1}}},
+		{Keys: bson.D{{Key: "nameLower", Value: 1}}},
 		{Keys: bson.D{{Key: "lastUpdated", Value: 1}}},
 		{Keys: bson.D{{Key: "lastSeen", Value: 1}}},
 		{Keys: bson.D{{Key: "disbandedAt", Value: 1}}},
@@ -58,6 +61,22 @@ func (s *PartyStore) ensureIndex(ctx context.Context) {
 			"Failed creating indexes on parties",
 			"error", err,
 		)
+	}
+}
+
+// migrate backfills fields for documents that were written before the field
+// existed.
+func (s *PartyStore) migrate(ctx context.Context) {
+	_, err := s.coll.UpdateMany(ctx,
+		bson.D{{Key: "nameLower", Value: bson.D{{Key: "$exists", Value: false}}}},
+		mongo.Pipeline{
+			{{Key: "$set", Value: bson.D{
+				{Key: "nameLower", Value: bson.D{{Key: "$toLower", Value: "$name"}}},
+			}}},
+		},
+	)
+	if err != nil {
+		slog.Error("Failed backfilling parties.nameLower", "error", err)
 	}
 }
 
@@ -248,6 +267,7 @@ func (s *PartyStore) GetStaleAmong(ctx context.Context, ids []bson.ObjectID, old
 func (s *PartyStore) UpsertParty(ctx context.Context, id bson.ObjectID, data Party) error {
 	set := bson.D{
 		{Key: "name", Value: data.Name},
+		{Key: "nameLower", Value: data.NameLower},
 		{Key: "description", Value: data.Description},
 		{Key: "countryId", Value: data.CountryID},
 		{Key: "regionId", Value: data.RegionID},
