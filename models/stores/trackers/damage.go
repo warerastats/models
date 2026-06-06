@@ -73,6 +73,20 @@ func (s *DamageStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "partyId", Value: 1},
+			{Key: "_id", Value: 1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on damages.{partyId,_id}",
+			"error", err,
+		)
+		return
+	}
 }
 
 func (s *DamageStore) Create(ctx context.Context, d Damage) (bson.ObjectID, error) {

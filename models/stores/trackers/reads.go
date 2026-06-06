@@ -756,13 +756,7 @@ const (
 // List returns battles newest first, keyset-paginated, optionally filtered by
 // activity/finalization state.
 func (s *BattleStore) List(ctx context.Context, filter BattleFilter, before *bson.ObjectID, limit int) ([]Battle, error) {
-	base := bson.D{}
-	switch filter {
-	case BattleFilterActive:
-		base = bson.D{{Key: "active", Value: true}}
-	case BattleFilterFinalized:
-		base = bson.D{{Key: "winnerSide", Value: bson.D{{Key: "$ne", Value: nil}}}}
-	}
+	base := applyBattleFilter(bson.D{}, filter)
 	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
 	if err != nil {
 		return nil, err
@@ -777,13 +771,46 @@ func (s *BattleStore) List(ctx context.Context, filter BattleFilter, before *bso
 	return out, nil
 }
 
+// applyBattleFilter narrows a battle query base by active/finalized state.
+func applyBattleFilter(base bson.D, filter BattleFilter) bson.D {
+	switch filter {
+	case BattleFilterActive:
+		return append(base, bson.E{Key: "active", Value: true})
+	case BattleFilterFinalized:
+		return append(base, bson.E{Key: "winnerSide", Value: bson.D{{Key: "$ne", Value: nil}}})
+	default:
+		return base
+	}
+}
+
 // GetByCountryPaged returns battles a country fought in (attacker or defender),
-// newest first, keyset-paginated.
-func (s *BattleStore) GetByCountryPaged(ctx context.Context, countryID bson.ObjectID, before *bson.ObjectID, limit int) ([]Battle, error) {
-	base := bson.D{{Key: "$or", Value: bson.A{
+// newest first, keyset-paginated, narrowed by filter.
+func (s *BattleStore) GetByCountryPaged(ctx context.Context, countryID bson.ObjectID, filter BattleFilter, before *bson.ObjectID, limit int) ([]Battle, error) {
+	base := applyBattleFilter(bson.D{{Key: "$or", Value: bson.A{
 		bson.D{{Key: "attackerCountryId", Value: countryID}},
 		bson.D{{Key: "defenderCountryId", Value: countryID}},
-	}}}
+	}}}, filter)
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Battle
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByRegionPaged returns battles fought in a region (attacker or defender),
+// newest first, keyset-paginated, narrowed by filter.
+func (s *BattleStore) GetByRegionPaged(ctx context.Context, regionID bson.ObjectID, filter BattleFilter, before *bson.ObjectID, limit int) ([]Battle, error) {
+	base := applyBattleFilter(bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "attackerRegionId", Value: regionID}},
+		bson.D{{Key: "defenderRegionId", Value: regionID}},
+	}}}, filter)
 	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
 	if err != nil {
 		return nil, err
@@ -832,6 +859,109 @@ func (s *DamageStore) GetByUserPaged(ctx context.Context, userID bson.ObjectID, 
 	defer cursor.Close(ctx)
 
 	var out []Damage
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetBattleIDsByPartyPaged returns distinct battle ids a party dealt damage in,
+// newest first, keyset-paginated by battle id.
+func (s *DamageStore) GetBattleIDsByPartyPaged(ctx context.Context, partyID bson.ObjectID, before *bson.ObjectID, limit int) ([]bson.ObjectID, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "partyId", Value: partyID}}}},
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$battleId"}}}},
+	}
+	if before != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}},
+		}}})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "_id", Value: -1}}}},
+		bson.D{{Key: "$limit", Value: pageLimit(limit)}},
+	)
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []bson.ObjectID
+	for cursor.Next(ctx) {
+		var r struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		err = cursor.Decode(&r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r.ID)
+	}
+	return out, cursor.Err()
+}
+
+// PartyParticipationAgg is a party's cumulative battle damage rollup.
+type PartyParticipationAgg struct {
+	TotalDamage int64 `bson:"totalDamage"`
+	BattleCount int   `bson:"battleCount"`
+}
+
+// AggregatePartyParticipation rolls up a party's total damage and distinct
+// battle count across all damage rows.
+func (s *DamageStore) AggregatePartyParticipation(ctx context.Context, partyID bson.ObjectID) (PartyParticipationAgg, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "partyId", Value: partyID}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "totalDamage", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
+			{Key: "battles", Value: bson.D{{Key: "$addToSet", Value: "$battleId"}}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "totalDamage", Value: 1},
+			{Key: "battleCount", Value: bson.D{{Key: "$size", Value: "$battles"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return PartyParticipationAgg{}, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []PartyParticipationAgg
+	err = cursor.All(ctx, &rows)
+	if err != nil {
+		return PartyParticipationAgg{}, err
+	}
+	if len(rows) == 0 {
+		return PartyParticipationAgg{}, nil
+	}
+	return rows[0], nil
+}
+
+// AggregateBattleDamage ranks users by total damage within a single battle.
+func (s *DamageStore) AggregateBattleDamage(ctx context.Context, battleID bson.ObjectID, limit int) ([]UserDamageAgg, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "battleId", Value: battleID}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$userId"},
+			{Key: "totalDamage", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "totalDamage", Value: 1},
+			{Key: "battleCount", Value: bson.D{{Key: "$literal", Value: 1}}},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "totalDamage", Value: -1}}}},
+		{{Key: "$limit", Value: pageLimit(limit)}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []UserDamageAgg
 	err = cursor.All(ctx, &out)
 	if err != nil {
 		return nil, err
