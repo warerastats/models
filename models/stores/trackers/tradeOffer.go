@@ -71,10 +71,11 @@ func (s *TradeOfferStore) ensureIndex(ctx context.Context) {
 			{Key: "itemCode", Value: 1},
 			{Key: "side", Value: 1},
 			{Key: "cancelled", Value: 1},
+			{Key: "price", Value: 1},
 		},
 	})
 	if err != nil {
-		slog.Error("Failed creating compound index on trade_offers (itemCode, side, cancelled)", "error", err)
+		slog.Error("Failed creating compound index on trade_offers (itemCode, side, cancelled, price)", "error", err)
 	}
 }
 

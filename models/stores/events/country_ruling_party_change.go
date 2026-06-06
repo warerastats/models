@@ -31,6 +31,7 @@ func (s *CountryRulingPartyChangeStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "countryId", Value: 1},
+			{Key: "_id", Value: -1},
 		},
 	})
 	if err != nil {

@@ -97,11 +97,14 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 	}
 
 	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "companyId", Value: 1}},
+		Keys: bson.D{
+			{Key: "_id", Value: 1},
+			{Key: "companyId", Value: 1},
+		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on users.companyId",
+			"Failed creating compound index on users.{_id,companyId}",
 			"error", err,
 		)
 	}
@@ -199,89 +202,106 @@ func (s *UserStore) GetForRefresh(ctx context.Context, n int, exclude []bson.Obj
 	thresholdMillis := int64(UserInactivityThreshold / time.Millisecond)
 	recentCutoff := time.Now().UTC().Add(-recentThreshold)
 
-	matchUsername := bson.D{
-		{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
-	}
-	if len(exclude) > 0 {
-		matchUsername = append(matchUsername, bson.E{
-			Key:   "_id",
-			Value: bson.D{{Key: "$nin", Value: exclude}},
-		})
-	}
-
-	// Huge, right?
-	// It:
-	// - Skips empty users (still to be filled)
-	// - Skips users we're already refreshing (exclude)
-	// - Skips "inactive" users, UNLESS we've seen them recently
-	// - Top-priority bucket = either lastUpdated < lastDate (existing
-	//   heuristic) OR recently seen but not yet refreshed since
-	// - Within a bucket, oldest lastUpdated first
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: matchUsername}},
-		{{Key: "$match", Value: bson.D{
-			{Key: "$nor", Value: bson.A{
-				bson.D{
-					{Key: "lastUpdated", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
-					{Key: "lastDate", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
-					{Key: "$expr", Value: bson.D{{Key: "$gt", Value: bson.A{
-						bson.D{{Key: "$subtract", Value: bson.A{"$lastUpdated", "$lastDate"}}},
-						thresholdMillis,
-					}}}},
-					{Key: "$or", Value: bson.A{
-						bson.D{{Key: "lastSeen", Value: bson.D{{Key: "$exists", Value: false}}}},
-						bson.D{{Key: "lastSeen", Value: bson.D{{Key: "$lt", Value: recentCutoff}}}},
-					}},
-				},
-			}},
-		}}},
-		{{Key: "$addFields", Value: bson.D{
-			{Key: "priorityFlag", Value: bson.D{{Key: "$cond", Value: bson.A{
-				bson.D{{Key: "$or", Value: bson.A{
-					bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastDate"}}},
-					bson.D{{Key: "$and", Value: bson.A{
-						bson.D{{Key: "$gte", Value: bson.A{"$lastSeen", recentCutoff}}},
-						bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastSeen"}}},
-					}}},
-				}}},
-				0,
-				1,
-			}}}},
-		}}},
-		{{Key: "$sort", Value: bson.D{
-			{Key: "priorityFlag", Value: 1},
-			{Key: "lastUpdated", Value: 1},
-		}}},
-		{{Key: "$limit", Value: int64(n)}},
-		{{Key: "$project", Value: bson.D{{Key: "_id", Value: 1}}}},
-	}
-
-	cursor, err := s.coll.Aggregate(ctx, pipeline)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var ids []bson.ObjectID
-	for cursor.Next(ctx) {
-		var result struct {
-			ID bson.ObjectID `bson:"_id"`
+	// baseFilter selects populated, non-excluded, "active" users: the $nor
+	// clause drops users that are inactive (refresh gap beyond the threshold)
+	// unless they've been seen recently. extraExclude is merged into the
+	// in-flight exclude set so the second pass never re-returns first-pass hits.
+	baseFilter := func(extraExclude []bson.ObjectID) bson.D {
+		f := bson.D{
+			{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
 		}
 
-		err = cursor.Decode(&result)
+		ex := exclude
+		if len(extraExclude) > 0 {
+			ex = make([]bson.ObjectID, 0, len(exclude)+len(extraExclude))
+			ex = append(ex, exclude...)
+			ex = append(ex, extraExclude...)
+		}
+		if len(ex) > 0 {
+			f = append(f, bson.E{Key: "_id", Value: bson.D{{Key: "$nin", Value: ex}}})
+		}
+
+		f = append(f, bson.E{Key: "$nor", Value: bson.A{
+			bson.D{
+				{Key: "lastUpdated", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
+				{Key: "lastDate", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
+				{Key: "$expr", Value: bson.D{{Key: "$gt", Value: bson.A{
+					bson.D{{Key: "$subtract", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+					thresholdMillis,
+				}}}},
+				{Key: "$or", Value: bson.A{
+					bson.D{{Key: "lastSeen", Value: bson.D{{Key: "$exists", Value: false}}}},
+					bson.D{{Key: "lastSeen", Value: bson.D{{Key: "$lt", Value: recentCutoff}}}},
+				}},
+			},
+		}})
+		return f
+	}
+
+	// priorityOr is the high-priority bucket: either the user has activity newer
+	// than its last refresh (lastUpdated < lastDate), or it was seen recently but
+	// hasn't been refreshed since (lastUpdated < lastSeen). Equivalent to the
+	// previous priorityFlag == 0 condition.
+	priorityOr := bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+		bson.D{{Key: "$and", Value: bson.A{
+			bson.D{{Key: "$gte", Value: bson.A{"$lastSeen", recentCutoff}}},
+			bson.D{{Key: "$lt", Value: bson.A{"$lastUpdated", "$lastSeen"}}},
+		}}},
+	}}}
+
+	findIDs := func(filter bson.D, limit int) ([]bson.ObjectID, error) {
+		if limit <= 0 {
+			return nil, nil
+		}
+		cursor, err := s.coll.Find(ctx, filter,
+			options.Find().
+				SetSort(bson.D{{Key: "lastUpdated", Value: 1}}).
+				SetLimit(int64(limit)).
+				SetProjection(bson.D{{Key: "_id", Value: 1}}),
+		)
 		if err != nil {
 			return nil, err
 		}
+		defer cursor.Close(ctx)
 
-		ids = append(ids, result.ID)
+		var ids []bson.ObjectID
+		for cursor.Next(ctx) {
+			var result struct {
+				ID bson.ObjectID `bson:"_id"`
+			}
+			err = cursor.Decode(&result)
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, result.ID)
+		}
+		return ids, cursor.Err()
 	}
 
-	err = cursor.Err()
+	// Pass 1: high-priority bucket, oldest lastUpdated first.
+	priorityFilter := append(baseFilter(nil), bson.E{Key: "$expr", Value: priorityOr})
+	priority, err := findIDs(priorityFilter, n)
+	if err != nil {
+		return nil, err
+	}
+	if len(priority) >= n {
+		return priority, nil
+	}
+
+	// Pass 2: everything else, oldest lastUpdated first, excluding pass-1 hits.
+	// Appending bucket 1 after bucket 0 reproduces the old {priorityFlag,
+	// lastUpdated} ordering exactly.
+	fillerFilter := append(baseFilter(priority), bson.E{
+		Key:   "$expr",
+		Value: bson.D{{Key: "$not", Value: bson.A{priorityOr}}},
+	})
+	filler, err := findIDs(fillerFilter, n-len(priority))
 	if err != nil {
 		return nil, err
 	}
 
-	return ids, nil
+	return append(priority, filler...), nil
 }
 
 func (s *UserStore) UpsertUser(ctx context.Context, id bson.ObjectID, data User) error {
