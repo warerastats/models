@@ -126,3 +126,65 @@ func (s *WageTransactionStore) DistinctEmployees(ctx context.Context, since, unt
 	}
 	return ids, nil
 }
+
+// WageCandleBucket is one OHLC accumulator row from AggregateWageCandles (avg = money/volume).
+type WageCandleBucket struct {
+	BucketStart time.Time `bson:"_id"`
+	Open        float64   `bson:"open"`
+	High        float64   `bson:"high"`
+	Low         float64   `bson:"low"`
+	Close       float64   `bson:"close"`
+	Volume      int       `bson:"volume"`
+	Money       float64   `bson:"money"`
+	Count       int       `bson:"count"`
+}
+
+// AggregateWageCandles buckets wage payments in (since, until] into OHLC windows of binSizeMinutes.
+func (s *WageTransactionStore) AggregateWageCandles(ctx context.Context, since, until time.Time, binSizeMinutes int) ([]WageCandleBucket, error) {
+	minID := bson.NewObjectIDFromTimestamp(since)
+	maxID := bson.NewObjectIDFromTimestamp(until)
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "_id", Value: bson.D{{Key: "$gt", Value: minID}, {Key: "$lte", Value: maxID}}},
+			{Key: "quantity", Value: bson.D{{Key: "$gt", Value: 0}}},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "_id", Value: 1}}}},
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "unit", Value: bson.D{{Key: "$divide", Value: bson.A{"$money", "$quantity"}}}},
+			{Key: "bucketStart", Value: bson.D{{Key: "$dateTrunc", Value: bson.D{
+				{Key: "date", Value: bson.D{{Key: "$toDate", Value: "$_id"}}},
+				{Key: "unit", Value: "minute"},
+				{Key: "binSize", Value: binSizeMinutes},
+			}}}},
+		}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$bucketStart"},
+			{Key: "open", Value: bson.D{{Key: "$first", Value: "$unit"}}},
+			{Key: "close", Value: bson.D{{Key: "$last", Value: "$unit"}}},
+			{Key: "high", Value: bson.D{{Key: "$max", Value: "$unit"}}},
+			{Key: "low", Value: bson.D{{Key: "$min", Value: "$unit"}}},
+			{Key: "money", Value: bson.D{{Key: "$sum", Value: "$money"}}},
+			{Key: "volume", Value: bson.D{{Key: "$sum", Value: "$quantity"}}},
+			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+	}
+
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []WageCandleBucket
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// EarliestTime returns the oldest wage transaction's time and whether any exist.
+func (s *WageTransactionStore) EarliestTime(ctx context.Context) (time.Time, bool, error) {
+	return earliestObjectIDTime(ctx, s.coll)
+}

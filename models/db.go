@@ -7,6 +7,10 @@ import (
 	"time"
 
 	"github.com/warerastats/models/models/stores/events"
+	processedcandles "github.com/warerastats/models/models/stores/processed/candles"
+	processedestimators "github.com/warerastats/models/models/stores/processed/estimators"
+	processedreports "github.com/warerastats/models/models/stores/processed/reports"
+	processedstates "github.com/warerastats/models/models/stores/processed/states"
 	"github.com/warerastats/models/models/stores/states"
 	"github.com/warerastats/models/models/stores/trackers"
 	"github.com/warerastats/models/models/stores/transactions"
@@ -22,6 +26,48 @@ type Collections struct {
 	Trackers     TrackersCollection
 	States       StatesCollection
 	Events       EventsCollection
+	Processed    ProcessedCollection
+}
+
+// ProcessedCollection holds the processor's derived-analytics output stores.
+type ProcessedCollection struct {
+	States     ProcessedStatesCollection
+	Candles    ProcessedCandlesCollection
+	Estimators ProcessedEstimatorsCollection
+	Reports    ProcessedReportsCollection
+}
+
+type ProcessedStatesCollection struct {
+	JobState *processedstates.JobStateStore
+}
+
+type ProcessedCandlesCollection struct {
+	ItemCandle *processedcandles.ItemCandleStore
+	WageCandle *processedcandles.WageCandleStore
+}
+
+type ProcessedEstimatorsCollection struct {
+	Inflation           *processedestimators.InflationStore
+	UserInventory       *processedestimators.UserInventoryStore
+	CountryInventory    *processedestimators.CountryInventoryStore
+	CountryFlipEvent    *processedestimators.CountryFlipEventStore
+	CountryFlipState    *processedestimators.CountryFlipStateStore
+	UserFlipEvent       *processedestimators.UserFlipEventStore
+	UserFlipState       *processedestimators.UserFlipStateStore
+	BattleParticipation *processedestimators.BattleParticipationStore
+}
+
+type ProcessedReportsCollection struct {
+	MarketState        *processedreports.MarketStateStore
+	EquipmentPricing   *processedreports.EquipmentPricingStore
+	ItemMarketReport   *processedreports.ItemMarketReportStore
+	WageMarketState    *processedreports.WageMarketStateStore
+	CasesReport        *processedreports.CasesReportStore
+	DismantleReport    *processedreports.DismantleReportStore
+	BattleDamageReport *processedreports.BattleDamageReportStore
+	CountryTaxFlow     *processedreports.CountryTaxFlowStore
+	UserFinanceReport  *processedreports.UserFinanceReportStore
+	EntityWealthReport *processedreports.EntityWealthReportStore
 }
 
 type EventsCollection struct {
@@ -147,6 +193,38 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 
 		States: StatesCollection{
 			ScraperState: states.NewScraperStateStore(ctx, db),
+		},
+
+		Processed: ProcessedCollection{
+			States: ProcessedStatesCollection{
+				JobState: processedstates.NewJobStateStore(ctx, db),
+			},
+			Candles: ProcessedCandlesCollection{
+				ItemCandle: processedcandles.NewItemCandleStore(ctx, db),
+				WageCandle: processedcandles.NewWageCandleStore(ctx, db),
+			},
+			Estimators: ProcessedEstimatorsCollection{
+				Inflation:           processedestimators.NewInflationStore(ctx, db),
+				UserInventory:       processedestimators.NewUserInventoryStore(ctx, db),
+				CountryInventory:    processedestimators.NewCountryInventoryStore(ctx, db),
+				CountryFlipEvent:    processedestimators.NewCountryFlipEventStore(ctx, db),
+				CountryFlipState:    processedestimators.NewCountryFlipStateStore(ctx, db),
+				UserFlipEvent:       processedestimators.NewUserFlipEventStore(ctx, db),
+				UserFlipState:       processedestimators.NewUserFlipStateStore(ctx, db),
+				BattleParticipation: processedestimators.NewBattleParticipationStore(ctx, db),
+			},
+			Reports: ProcessedReportsCollection{
+				MarketState:        processedreports.NewMarketStateStore(ctx, db),
+				EquipmentPricing:   processedreports.NewEquipmentPricingStore(ctx, db),
+				ItemMarketReport:   processedreports.NewItemMarketReportStore(ctx, db),
+				WageMarketState:    processedreports.NewWageMarketStateStore(ctx, db),
+				CasesReport:        processedreports.NewCasesReportStore(ctx, db),
+				DismantleReport:    processedreports.NewDismantleReportStore(ctx, db),
+				BattleDamageReport: processedreports.NewBattleDamageReportStore(ctx, db),
+				CountryTaxFlow:     processedreports.NewCountryTaxFlowStore(ctx, db),
+				UserFinanceReport:  processedreports.NewUserFinanceReportStore(ctx, db),
+				EntityWealthReport: processedreports.NewEntityWealthReportStore(ctx, db),
+			},
 		},
 
 		Events: EventsCollection{
