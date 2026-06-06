@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -307,6 +309,33 @@ func (s *PartyStore) MarkDisbanded(ctx context.Context, id bson.ObjectID) error 
 		bson.D{{Key: "$set", Value: bson.D{{Key: "disbandedAt", Value: time.Now().UTC()}}}},
 	)
 	return err
+}
+
+// Search returns up to limit parties whose name starts with term
+// (case-insensitive), ordered alphabetically. Prefix-anchored so the nameLower
+// index is used.
+func (s *PartyStore) Search(ctx context.Context, term string, limit int) ([]Party, error) {
+	if term == "" || limit <= 0 {
+		return nil, nil
+	}
+	pattern := "^" + regexp.QuoteMeta(strings.ToLower(term))
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "nameLower", Value: bson.D{{Key: "$regex", Value: pattern}}}},
+		options.Find().
+			SetSort(bson.D{{Key: "nameLower", Value: 1}}).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Party
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // ClearDisbanded removes the disbanded flag, returning the party to the normal

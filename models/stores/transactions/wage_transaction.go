@@ -188,3 +188,36 @@ func (s *WageTransactionStore) AggregateWageCandles(ctx context.Context, since, 
 func (s *WageTransactionStore) EarliestTime(ctx context.Context) (time.Time, bool, error) {
 	return earliestObjectIDTime(ctx, s.coll)
 }
+
+// ByUser returns wage payments where the user is the employee or employer,
+// newest first. Pass a non-nil before (an _id) to page: only documents with
+// _id < before are returned. _id encodes creation time, so it doubles as the
+// time-ordered pagination cursor.
+func (s *WageTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]WageTransaction, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	filter := bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "employeeId", Value: userID}},
+		bson.D{{Key: "employerId", Value: userID}},
+	}}}
+	if before != nil {
+		filter = append(filter, bson.E{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}})
+	}
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().
+			SetSort(bson.D{{Key: "_id", Value: -1}}).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []WageTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

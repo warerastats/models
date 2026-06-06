@@ -96,3 +96,32 @@ func (s *CaseTransactionStore) BulkCreate(ctx context.Context, txs []CaseTransac
 	_, err := s.coll.BulkWrite(ctx, ops, options.BulkWrite().SetOrdered(false))
 	return err
 }
+
+// ByUser returns case openings for the given user, newest first. Pass a non-nil
+// before (an _id) to page: only documents with _id < before are returned. _id
+// encodes creation time, so it doubles as the time-ordered pagination cursor.
+func (s *CaseTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]CaseTransaction, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	filter := bson.D{{Key: "userId", Value: userID}}
+	if before != nil {
+		filter = append(filter, bson.E{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}})
+	}
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().
+			SetSort(bson.D{{Key: "_id", Value: -1}}).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CaseTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

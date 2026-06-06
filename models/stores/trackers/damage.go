@@ -141,3 +141,23 @@ func (s *DamageStore) GetUserBattleTotal(ctx context.Context, battleID, userID b
 
 	return result.Total, nil
 }
+
+// ByUserAndBattle returns every damage record for the given user in the given
+// battle. Backed by the {battleId,userId,side} compound index.
+func (s *DamageStore) ByUserAndBattle(ctx context.Context, userID, battleID bson.ObjectID) ([]Damage, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{
+		{Key: "battleId", Value: battleID},
+		{Key: "userId", Value: userID},
+	}, options.Find().SetSort(bson.D{{Key: "at", Value: -1}}))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Damage
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

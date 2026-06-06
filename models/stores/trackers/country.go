@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"regexp"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -101,4 +103,34 @@ func (s *CountryStore) DistinctRulingPartyIDs(ctx context.Context) ([]bson.Objec
 	}
 
 	return ids, nil
+}
+
+// Search returns up to limit countries whose name contains term
+// (case-insensitive), ordered alphabetically. Countries are few, so an
+// unindexed scan is acceptable here.
+func (s *CountryStore) Search(ctx context.Context, term string, limit int) ([]Country, error) {
+	if term == "" || limit <= 0 {
+		return nil, nil
+	}
+	pattern := regexp.QuoteMeta(strings.TrimSpace(term))
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "name", Value: bson.D{
+			{Key: "$regex", Value: pattern},
+			{Key: "$options", Value: "i"},
+		}}},
+		options.Find().
+			SetSort(bson.D{{Key: "name", Value: 1}}).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Country
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }

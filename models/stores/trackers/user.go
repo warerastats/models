@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -426,4 +428,31 @@ func (s *UserStore) MembersAllInactive(ctx context.Context, ids []bson.ObjectID)
 	}
 
 	return active == 0, nil
+}
+
+// Search returns up to limit users whose username starts with term
+// (case-insensitive), ordered alphabetically. Prefix-anchored so the
+// usernameLower index is used.
+func (s *UserStore) Search(ctx context.Context, term string, limit int) ([]User, error) {
+	if term == "" || limit <= 0 {
+		return nil, nil
+	}
+	pattern := "^" + regexp.QuoteMeta(strings.ToLower(term))
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "usernameLower", Value: bson.D{{Key: "$regex", Value: pattern}}}},
+		options.Find().
+			SetSort(bson.D{{Key: "usernameLower", Value: 1}}).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []User
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
