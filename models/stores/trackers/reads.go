@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/warerastats/models/models/enums"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -502,6 +503,455 @@ func (s *TradeOfferStore) GetOpenOffers(ctx context.Context, itemCode, side stri
 	defer cursor.Close(ctx)
 
 	var out []OpenOffer
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// withCursor appends an exclusive _id < before clause to a base filter for
+// newest-first keyset pagination. before may be nil for the first page.
+func withCursor(base bson.D, before *bson.ObjectID) bson.D {
+	out := make(bson.D, len(base), len(base)+1)
+	copy(out, base)
+	if before != nil {
+		out = append(out, bson.E{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}})
+	}
+	return out
+}
+
+// pageLimit clamps a requested page size into a sane range.
+func pageLimit(limit int) int64 {
+	if limit <= 0 {
+		return 20
+	}
+	if limit > 200 {
+		return 200
+	}
+	return int64(limit)
+}
+
+// newestFirst is a Find option set sorting by _id descending with a limit.
+func newestFirst(limit int) *options.FindOptionsBuilder {
+	return options.Find().
+		SetSort(bson.D{{Key: "_id", Value: -1}}).
+		SetLimit(pageLimit(limit))
+}
+
+// GetByCountryPaged returns users in a country, newest first, keyset-paginated.
+func (s *UserStore) GetByCountryPaged(ctx context.Context, countryID bson.ObjectID, before *bson.ObjectID, limit int) ([]User, error) {
+	filter := withCursor(bson.D{{Key: "countryId", Value: countryID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []User
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByRulingParty returns the countries currently ruled by a party.
+func (s *CountryStore) GetByRulingParty(ctx context.Context, partyID bson.ObjectID) ([]Country, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "rulingPartyId", Value: partyID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Country
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByCountry returns all regions belonging to a country.
+func (s *RegionStore) GetByCountry(ctx context.Context, countryID bson.ObjectID) ([]Region, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "countryId", Value: countryID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Region
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetMany returns region documents for the given ids.
+func (s *RegionStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Region, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Region
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// activeFilter matches non-disbanded entities (missing or zero disbandedAt).
+func activeFilter() bson.D {
+	return bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "disbandedAt", Value: bson.D{{Key: "$exists", Value: false}}}},
+		bson.D{{Key: "disbandedAt", Value: time.Time{}}},
+	}}}
+}
+
+// GetByCountryPaged returns parties in a country, newest first, keyset-paginated.
+func (s *PartyStore) GetByCountryPaged(ctx context.Context, countryID bson.ObjectID, before *bson.ObjectID, limit int) ([]Party, error) {
+	filter := withCursor(bson.D{{Key: "countryId", Value: countryID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Party
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByRegion returns parties headquartered in a region.
+func (s *PartyStore) GetByRegion(ctx context.Context, regionID bson.ObjectID) ([]Party, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "regionId", Value: regionID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Party
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListActive returns parties, newest first, keyset-paginated. When activeOnly
+// is set, disbanded parties are excluded.
+func (s *PartyStore) ListActive(ctx context.Context, activeOnly bool, before *bson.ObjectID, limit int) ([]Party, error) {
+	base := bson.D{}
+	if activeOnly {
+		base = activeFilter()
+	}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Party
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetMany returns party documents for the given ids.
+func (s *PartyStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Party, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Party
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByRegion returns mus headquartered in a region.
+func (s *MuStore) GetByRegion(ctx context.Context, regionID bson.ObjectID) ([]Mu, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "regionId", Value: regionID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Mu
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListActive returns mus, newest first, keyset-paginated. When activeOnly is
+// set, disbanded mus are excluded.
+func (s *MuStore) ListActive(ctx context.Context, activeOnly bool, before *bson.ObjectID, limit int) ([]Mu, error) {
+	base := bson.D{}
+	if activeOnly {
+		base = activeFilter()
+	}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Mu
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetMany returns mu documents for the given ids.
+func (s *MuStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Mu, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Mu
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// BattleFilter selects which battles a listing returns.
+type BattleFilter int
+
+const (
+	BattleFilterAll BattleFilter = iota
+	BattleFilterActive
+	BattleFilterFinalized
+)
+
+// List returns battles newest first, keyset-paginated, optionally filtered by
+// activity/finalization state.
+func (s *BattleStore) List(ctx context.Context, filter BattleFilter, before *bson.ObjectID, limit int) ([]Battle, error) {
+	base := bson.D{}
+	switch filter {
+	case BattleFilterActive:
+		base = bson.D{{Key: "active", Value: true}}
+	case BattleFilterFinalized:
+		base = bson.D{{Key: "winnerSide", Value: bson.D{{Key: "$ne", Value: nil}}}}
+	}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Battle
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByCountryPaged returns battles a country fought in (attacker or defender),
+// newest first, keyset-paginated.
+func (s *BattleStore) GetByCountryPaged(ctx context.Context, countryID bson.ObjectID, before *bson.ObjectID, limit int) ([]Battle, error) {
+	base := bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "attackerCountryId", Value: countryID}},
+		bson.D{{Key: "defenderCountryId", Value: countryID}},
+	}}}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Battle
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByBattlePaged returns damage rows for a battle, newest first,
+// keyset-paginated, optionally narrowed to a side and/or user.
+func (s *DamageStore) GetByBattlePaged(ctx context.Context, battleID bson.ObjectID, before *bson.ObjectID, limit int, side *enums.Side, userID *bson.ObjectID) ([]Damage, error) {
+	base := bson.D{{Key: "battleId", Value: battleID}}
+	if side != nil {
+		base = append(base, bson.E{Key: "side", Value: *side})
+	}
+	if userID != nil {
+		base = append(base, bson.E{Key: "userId", Value: *userID})
+	}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Damage
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByUserPaged returns a user's damage rows across all battles, newest first.
+func (s *DamageStore) GetByUserPaged(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]Damage, error) {
+	filter := withCursor(bson.D{{Key: "userId", Value: userID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Damage
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByOwnerPaged returns items owned by a user, newest first, keyset-paginated.
+func (s *ItemStore) GetByOwnerPaged(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]Item, error) {
+	filter := withCursor(bson.D{{Key: "ownerUserId", Value: userID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Item
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetHistoryForUser returns a user's skill snapshots, newest first, paginated.
+func (s *SkillStore) GetHistoryForUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]Skill, error) {
+	filter := withCursor(bson.D{{Key: "userId", Value: userID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Skill
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByUser returns the companies owned by a user.
+func (s *CompanyStore) GetByUser(ctx context.Context, userID bson.ObjectID) ([]Company, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "userId", Value: userID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Company
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByRegionPaged returns companies located in a region, newest first.
+func (s *CompanyStore) GetByRegionPaged(ctx context.Context, regionID bson.ObjectID, before *bson.ObjectID, limit int) ([]Company, error) {
+	filter := withCursor(bson.D{{Key: "regionId", Value: regionID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Company
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetMany returns company documents for the given ids.
+func (s *CompanyStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Company, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Company
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Get returns a single trade offer by id.
+func (s *TradeOfferStore) Get(ctx context.Context, id bson.ObjectID) (*TradeOffer, error) {
+	var offer TradeOffer
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&offer)
+	if err != nil {
+		return nil, err
+	}
+	return &offer, nil
+}
+
+// GetByUserPaged returns a user's trade offers, newest first, keyset-paginated,
+// optionally narrowed to an item code and/or side.
+func (s *TradeOfferStore) GetByUserPaged(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int, itemCode *string, side *enums.TradeSide) ([]TradeOffer, error) {
+	base := bson.D{{Key: "userId", Value: userID}}
+	if itemCode != nil {
+		base = append(base, bson.E{Key: "itemCode", Value: *itemCode})
+	}
+	if side != nil {
+		base = append(base, bson.E{Key: "side", Value: *side})
+	}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []TradeOffer
 	err = cursor.All(ctx, &out)
 	if err != nil {
 		return nil, err

@@ -1,0 +1,250 @@
+package reports
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+)
+
+// timeRange builds an inclusive [from, to] filter clause on the given field.
+func timeRange(field string, from, to time.Time) bson.E {
+	return bson.E{Key: field, Value: bson.D{
+		{Key: "$gte", Value: from},
+		{Key: "$lte", Value: to},
+	}}
+}
+
+// GetByCountryRange returns a country's hourly tax flows in [from, to], oldest first.
+func (s *CountryTaxFlowStore) GetByCountryRange(ctx context.Context, countryID bson.ObjectID, from, to time.Time) ([]CountryTaxFlow, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "countryId", Value: countryID}, timeRange("hourStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "hourStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CountryTaxFlow
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByUserRange returns a user's daily finance reports in [from, to], oldest first.
+func (s *UserFinanceReportStore) GetByUserRange(ctx context.Context, userID bson.ObjectID, from, to time.Time) ([]UserFinanceReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "userId", Value: userID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []UserFinanceReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByEntityRange returns an entity's daily wealth reports in [from, to], oldest first.
+func (s *EntityWealthReportStore) GetByEntityRange(ctx context.Context, entityType string, entityID bson.ObjectID, from, to time.Time) ([]EntityWealthReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{
+			{Key: "entityType", Value: entityType},
+			{Key: "entityId", Value: entityID},
+			timeRange("dayStart", from, to),
+		},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []EntityWealthReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByBattle returns a battle's per-interval damage report rows whose interval
+// falls in [from, to], oldest first.
+func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to time.Time) ([]BattleDamageReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "battleId", Value: battleID}, timeRange("intervalStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "intervalStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []BattleDamageReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetRange returns market-state snapshots in [from, to], oldest first.
+func (s *MarketStateStore) GetRange(ctx context.Context, from, to time.Time) ([]MarketState, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{timeRange("at", from, to)},
+		options.Find().SetSort(bson.D{{Key: "at", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []MarketState
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetLatest returns the most recent market-state snapshot, or false when none.
+func (s *MarketStateStore) GetLatest(ctx context.Context) (*MarketState, bool, error) {
+	var st MarketState
+	err := s.coll.FindOne(ctx, bson.D{},
+		options.FindOne().SetSort(bson.D{{Key: "at", Value: -1}}),
+	).Decode(&st)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &st, true, nil
+}
+
+// GetRange returns wage-market-state snapshots in [from, to], oldest first.
+func (s *WageMarketStateStore) GetRange(ctx context.Context, from, to time.Time) ([]WageMarketState, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{timeRange("at", from, to)},
+		options.Find().SetSort(bson.D{{Key: "at", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []WageMarketState
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetLatest returns the most recent wage-market-state snapshot, or false when none.
+func (s *WageMarketStateStore) GetLatest(ctx context.Context) (*WageMarketState, bool, error) {
+	var st WageMarketState
+	err := s.coll.FindOne(ctx, bson.D{},
+		options.FindOne().SetSort(bson.D{{Key: "at", Value: -1}}),
+	).Decode(&st)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &st, true, nil
+}
+
+// GetRange returns hourly dismantle reports in [from, to], oldest first.
+func (s *DismantleReportStore) GetRange(ctx context.Context, from, to time.Time) ([]DismantleReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{timeRange("hourStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "hourStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []DismantleReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetAll returns every per-case report.
+func (s *CasesReportStore) GetAll(ctx context.Context) ([]CasesReport, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CasesReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Get returns the market report for an item code, or false when none exists.
+func (s *ItemMarketReportStore) Get(ctx context.Context, itemCode string) (*ItemMarketReport, bool, error) {
+	var r ItemMarketReport
+	err := s.coll.FindOne(ctx, bson.D{{Key: "_id", Value: itemCode}}).Decode(&r)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &r, true, nil
+}
+
+// GetWindow returns the per-window price summary for an item, or false when none.
+func (s *EquipmentPricingStore) GetWindow(ctx context.Context, itemCode string, windowDays int) (*EquipmentWindowPrice, bool, error) {
+	var r EquipmentWindowPrice
+	err := s.windows.FindOne(ctx,
+		bson.D{{Key: "_id", Value: EquipmentWindowPriceID(itemCode, windowDays)}},
+	).Decode(&r)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &r, true, nil
+}
+
+// GetSkills returns the per-skill-combo price summaries for an item and window.
+func (s *EquipmentPricingStore) GetSkills(ctx context.Context, itemCode string, windowDays int) ([]EquipmentSkillPrice, error) {
+	cursor, err := s.skills.Find(ctx, bson.D{
+		{Key: "itemCode", Value: itemCode},
+		{Key: "windowDays", Value: windowDays},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []EquipmentSkillPrice
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

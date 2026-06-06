@@ -359,6 +359,118 @@ func (s *CaseTransactionStore) GetDropsRange(ctx context.Context, since, until t
 	return out, nil
 }
 
+// withCursor appends an exclusive _id < before clause for newest-first keyset
+// pagination. before may be nil for the first page.
+func withCursor(base bson.D, before *bson.ObjectID) bson.D {
+	out := make(bson.D, len(base), len(base)+1)
+	copy(out, base)
+	if before != nil {
+		out = append(out, bson.E{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}})
+	}
+	return out
+}
+
+// newestFirst is a Find option set sorting by _id descending with a clamped limit.
+func newestFirst(limit int) *options.FindOptionsBuilder {
+	l := int64(20)
+	switch {
+	case limit > 200:
+		l = 200
+	case limit > 0:
+		l = int64(limit)
+	}
+	return options.Find().SetSort(bson.D{{Key: "_id", Value: -1}}).SetLimit(l)
+}
+
+// ByUser returns trade transactions where the user is the buyer or seller,
+// newest first, keyset-paginated.
+func (s *TradeTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]TradeTransaction, error) {
+	base := bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "sellerId", Value: userID}},
+		bson.D{{Key: "buyerId", Value: userID}},
+	}}}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []TradeTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ByUser returns a user's craft transactions, newest first, keyset-paginated.
+func (s *CraftTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]CraftTransaction, error) {
+	filter := withCursor(bson.D{{Key: "userId", Value: userID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CraftTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ByUser returns a user's loot transactions, newest first, keyset-paginated.
+func (s *LootTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]LootTransaction, error) {
+	filter := withCursor(bson.D{{Key: "userId", Value: userID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []LootTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ByUser returns a user's dismantle transactions, newest first, keyset-paginated.
+func (s *DismantleTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]DismantleTransaction, error) {
+	filter := withCursor(bson.D{{Key: "userId", Value: userID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []DismantleTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByItemPaged returns equipment-market transactions for an item, newest first.
+func (s *MarketTransactionStore) GetByItemPaged(ctx context.Context, itemID bson.ObjectID, before *bson.ObjectID, limit int) ([]MarketTransaction, error) {
+	filter := withCursor(bson.D{{Key: "itemId", Value: itemID}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []MarketTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EarliestTime returns the oldest case transaction's time and whether any exist.
 func (s *CaseTransactionStore) EarliestTime(ctx context.Context) (time.Time, bool, error) {
 	return earliestObjectIDTime(ctx, s.coll)

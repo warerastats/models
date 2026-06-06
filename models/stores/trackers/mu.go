@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -46,6 +48,7 @@ func (s *MuStore) ensureIndex(ctx context.Context) {
 	indexes := []mongo.IndexModel{
 		{Keys: bson.D{{Key: "name", Value: 1}}},
 		{Keys: bson.D{{Key: "nameLower", Value: 1}}},
+		{Keys: bson.D{{Key: "regionId", Value: 1}}},
 		{Keys: bson.D{{Key: "lastUpdated", Value: 1}}},
 		{Keys: bson.D{{Key: "lastSeen", Value: 1}}},
 		{Keys: bson.D{{Key: "disbandedAt", Value: 1}}},
@@ -269,4 +272,31 @@ func (s *MuStore) ClearDisbanded(ctx context.Context, id bson.ObjectID) error {
 		bson.D{{Key: "$unset", Value: bson.D{{Key: "disbandedAt", Value: ""}}}},
 	)
 	return err
+}
+
+// Search returns up to limit mus whose nameLower starts with term
+// (case-insensitive), ordered alphabetically. Prefix-anchored so the nameLower
+// index is used.
+func (s *MuStore) Search(ctx context.Context, term string, limit int) ([]Mu, error) {
+	if term == "" || limit <= 0 {
+		return nil, nil
+	}
+	pattern := "^" + regexp.QuoteMeta(strings.ToLower(term))
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "nameLower", Value: bson.D{{Key: "$regex", Value: pattern}}}},
+		options.Find().
+			SetSort(bson.D{{Key: "nameLower", Value: 1}}).
+			SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Mu
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }

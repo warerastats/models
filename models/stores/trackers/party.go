@@ -51,6 +51,7 @@ func NewPartyStore(ctx context.Context, db *mongo.Database) *PartyStore {
 func (s *PartyStore) ensureIndex(ctx context.Context) {
 	indexes := []mongo.IndexModel{
 		{Keys: bson.D{{Key: "countryId", Value: 1}}},
+		{Keys: bson.D{{Key: "regionId", Value: 1}}},
 		{Keys: bson.D{{Key: "name", Value: 1}}},
 		{Keys: bson.D{{Key: "nameLower", Value: 1}}},
 		{Keys: bson.D{{Key: "lastUpdated", Value: 1}}},

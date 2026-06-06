@@ -110,6 +110,19 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 			"error", err,
 		)
 	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "countryId", Value: 1},
+			{Key: "_id", Value: 1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on users.{countryId,_id}",
+			"error", err,
+		)
+	}
 }
 
 func (s *UserStore) Exists(ctx context.Context, ids []bson.ObjectID) ([]bson.ObjectID, error) {

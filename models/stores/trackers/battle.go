@@ -65,6 +65,26 @@ func (s *BattleStore) ensureIndex(ctx context.Context) {
 			"error", err,
 		)
 	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "attackerCountryId", Value: 1}, {Key: "_id", Value: 1}},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on battles.{attackerCountryId,_id}",
+			"error", err,
+		)
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "defenderCountryId", Value: 1}, {Key: "_id", Value: 1}},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on battles.{defenderCountryId,_id}",
+			"error", err,
+		)
+	}
 }
 
 func (s *BattleStore) Get(ctx context.Context, id bson.ObjectID) (*Battle, error) {

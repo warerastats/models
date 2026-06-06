@@ -17,7 +17,7 @@ type TradeTransaction struct {
 	SellerMuID      *bson.ObjectID `bson:"sellerMuId,omitempty"`
 	BuyerMuID       *bson.ObjectID `bson:"buyerMuId,omitempty"`
 	SellerCountryID *bson.ObjectID `bson:"sellerCountryId,omitempty"`
-	BuyerCountryID  *bson.ObjectID `bson:"buyerSellerId,omitempty"`
+	BuyerCountryID  *bson.ObjectID `bson:"buyerCountryId,omitempty"`
 	ItemOfferID     *bson.ObjectID `bson:"itemOfferId,omitempty"`
 	ItemCode        string         `bson:"itemCode"`
 	Money           float64        `bson:"money"`
@@ -35,7 +35,19 @@ func NewTradeTransactionStore(ctx context.Context, db *mongo.Database) *TradeTra
 		coll: db.Collection("trade_transactions"),
 	}
 	store.ensureIndex(ctx)
+	store.migrate(ctx)
 	return store
+}
+
+// migrate renames the legacy misspelled buyerSellerId field to buyerCountryId.
+func (s *TradeTransactionStore) migrate(ctx context.Context) {
+	_, err := s.coll.UpdateMany(ctx,
+		bson.D{{Key: "buyerSellerId", Value: bson.D{{Key: "$exists", Value: true}}}},
+		bson.D{{Key: "$rename", Value: bson.D{{Key: "buyerSellerId", Value: "buyerCountryId"}}}},
+	)
+	if err != nil {
+		slog.Error("Failed renaming trade_transactions.buyerSellerId to buyerCountryId", "error", err)
+	}
 }
 
 func (s *TradeTransactionStore) ensureIndex(ctx context.Context) {
