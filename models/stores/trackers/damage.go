@@ -9,6 +9,7 @@ import (
 	"github.com/warerastats/models/models/enums"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Damage struct {
@@ -84,6 +85,22 @@ func (s *DamageStore) Create(ctx context.Context, d Damage) (bson.ObjectID, erro
 		return bson.ObjectID{}, errors.New("damages insert returned non-ObjectID id")
 	}
 	return id, nil
+}
+
+// BulkCreate inserts a batch of damage events in a single unordered write.
+// Damage attribution is delta-based and self-healing, so an unordered insert
+// (where one failing document does not abort the rest) is safe: any dropped
+// delta is re-derived on the next ranking sweep.
+func (s *DamageStore) BulkCreate(ctx context.Context, ds []Damage) error {
+	if len(ds) == 0 {
+		return nil
+	}
+	docs := make([]any, len(ds))
+	for i := range ds {
+		docs[i] = ds[i]
+	}
+	_, err := s.coll.InsertMany(ctx, docs, options.InsertMany().SetOrdered(false))
+	return err
 }
 
 func (s *DamageStore) GetUserBattleTotal(ctx context.Context, battleID, userID bson.ObjectID, side enums.Side) (int, error) {

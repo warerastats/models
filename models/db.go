@@ -91,7 +91,11 @@ func Init(context.Context) (*Collections, error) {
 	}
 
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
+	opts := options.Client().
+		ApplyURI(uri).
+		SetServerAPIOptions(serverAPI).
+		SetMaxPoolSize(200).
+		SetCompressors([]string{"zstd", "snappy"})
 
 	var err error
 	client, err := mongo.Connect(opts)

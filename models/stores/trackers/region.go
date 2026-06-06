@@ -21,6 +21,7 @@ type Region struct {
 	Resistance        float64         `bson:"resistance"`
 	MaxResistance     float64         `bson:"maxResistance"`
 	LatestObject      json.RawMessage `bson:"raw"`
+	RawHash           string          `bson:"rawHash,omitempty"`
 }
 
 type RegionStore struct {
@@ -37,19 +38,6 @@ func NewRegionStore(ctx context.Context, db *mongo.Database) *RegionStore {
 
 func (s *RegionStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "_id", Value: 1},
-		},
-	})
-	if err != nil {
-		slog.Error(
-			"Failed creating index on regions._id",
-			"error", err,
-		)
-		return
-	}
-
-	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "countryId", Value: 1},
 		},
@@ -74,7 +62,17 @@ func (s *RegionStore) Get(ctx context.Context, id bson.ObjectID) (*Region, error
 
 func (s *RegionStore) UpsertRegion(ctx context.Context, id bson.ObjectID, data Region) error {
 	data.ID = id
-	_, err := s.coll.ReplaceOne(ctx,
+	hash := hashRaw(data.LatestObject)
+	data.RawHash = hash
+
+	skip, err := rawUnchanged(ctx, s.coll, id, hash)
+	if err != nil {
+		return err
+	} else if skip {
+		return nil
+	}
+
+	_, err = s.coll.ReplaceOne(ctx,
 		bson.D{{Key: "_id", Value: id}},
 		data,
 		options.Replace().SetUpsert(true),

@@ -116,3 +116,21 @@ func (s *TradeTransactionStore) Create(
 	)
 	return err
 }
+
+// BulkCreate inserts a batch of transactions in a single unordered bulk write.
+// Each op is an idempotent upsert keyed on _id with $setOnInsert, so
+// re-ingesting an already-stored transaction is a no-op.
+func (s *TradeTransactionStore) BulkCreate(ctx context.Context, txs []TradeTransaction) error {
+	if len(txs) == 0 {
+		return nil
+	}
+	ops := make([]mongo.WriteModel, len(txs))
+	for i := range txs {
+		ops[i] = mongo.NewUpdateOneModel().
+			SetFilter(bson.D{{Key: "_id", Value: txs[i].ID}}).
+			SetUpdate(bson.D{{Key: "$setOnInsert", Value: txs[i]}}).
+			SetUpsert(true)
+	}
+	_, err := s.coll.BulkWrite(ctx, ops, options.BulkWrite().SetOrdered(false))
+	return err
+}

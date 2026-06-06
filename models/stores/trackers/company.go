@@ -17,6 +17,7 @@ type Company struct {
 	ItemCode     string          `bson:"itemCode"`
 	Name         string          `bson:"name"`
 	LatestObject json.RawMessage `bson:"raw"`
+	RawHash      string          `bson:"rawHash,omitempty"`
 }
 
 type CompanyStore struct {
@@ -33,19 +34,6 @@ func NewCompanyStore(ctx context.Context, db *mongo.Database) *CompanyStore {
 
 func (s *CompanyStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "_id", Value: 1},
-		},
-	})
-	if err != nil {
-		slog.Error(
-			"Failed creating index on companies._id",
-			"error", err,
-		)
-		return
-	}
-
-	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "userId", Value: 1},
 		},
@@ -70,7 +58,17 @@ func (s *CompanyStore) Get(ctx context.Context, id bson.ObjectID) (*Company, err
 
 func (s *CompanyStore) Upsert(ctx context.Context, id bson.ObjectID, data Company) error {
 	data.ID = id
-	_, err := s.coll.ReplaceOne(ctx,
+	hash := hashRaw(data.LatestObject)
+	data.RawHash = hash
+
+	skip, err := rawUnchanged(ctx, s.coll, id, hash)
+	if err != nil {
+		return err
+	} else if skip {
+		return nil
+	}
+
+	_, err = s.coll.ReplaceOne(ctx,
 		bson.D{{Key: "_id", Value: id}},
 		data,
 		options.Replace().SetUpsert(true),

@@ -87,6 +87,46 @@ func objectIDOrNull(p *bson.ObjectID) any {
 	return *p
 }
 
+// buildUpsertFromAPIPipeline returns the update pipeline applied by both the
+// single and bulk API-sighting upserts. Keeping it in one place guarantees the
+// two paths stay byte-for-byte identical.
+func buildUpsertFromAPIPipeline(
+	userID bson.ObjectID,
+	countryID *bson.ObjectID,
+	muID *bson.ObjectID,
+	itemCode string,
+	side enums.TradeSide,
+	apiRemaining int,
+	price float64,
+	since time.Time,
+	now time.Time,
+) bson.A {
+	return bson.A{
+		bson.M{"$set": bson.M{
+			"userId":      userID,
+			"itemCode":    itemCode,
+			"side":        side,
+			"price":       price,
+			"since":       since,
+			"lastUpdated": now,
+			"countryId":   bson.M{"$ifNull": bson.A{objectIDOrNull(countryID), "$countryId"}},
+			"muId":        bson.M{"$ifNull": bson.A{objectIDOrNull(muID), "$muId"}},
+			"fulfilled":   bson.M{"$ifNull": bson.A{"$fulfilled", 0}},
+			"cancelled":   bson.M{"$ifNull": bson.A{"$cancelled", false}},
+			"quantity": bson.M{"$max": bson.A{
+				bson.M{"$ifNull": bson.A{"$quantity", apiRemaining}},
+				bson.M{"$add": bson.A{bson.M{"$ifNull": bson.A{"$fulfilled", 0}}, apiRemaining}},
+			}},
+		}},
+		bson.M{"$set": bson.M{
+			"fulfilled": bson.M{"$max": bson.A{
+				"$fulfilled",
+				bson.M{"$subtract": bson.A{"$quantity", apiRemaining}},
+			}},
+		}},
+	}
+}
+
 // UpsertFromAPI applies an API top-orders sighting to the offer. It is
 // keyed on _id (the canonical server-assigned offer ID). On insert the doc
 // is created with quantity = apiRemaining, fulfilled = 0, cancelled = false.
@@ -111,30 +151,9 @@ func (s *TradeOfferStore) UpsertFromAPI(
 ) (bool, error) {
 	now := time.Now().UTC()
 
-	pipeline := bson.A{
-		bson.M{"$set": bson.M{
-			"userId":      userID,
-			"itemCode":    itemCode,
-			"side":        side,
-			"price":       price,
-			"since":       since,
-			"lastUpdated": now,
-			"countryId":   bson.M{"$ifNull": bson.A{objectIDOrNull(countryID), "$countryId"}},
-			"muId":        bson.M{"$ifNull": bson.A{objectIDOrNull(muID), "$muId"}},
-			"fulfilled":   bson.M{"$ifNull": bson.A{"$fulfilled", 0}},
-			"cancelled":   bson.M{"$ifNull": bson.A{"$cancelled", false}},
-			"quantity": bson.M{"$max": bson.A{
-				bson.M{"$ifNull": bson.A{"$quantity", apiRemaining}},
-				bson.M{"$add": bson.A{bson.M{"$ifNull": bson.A{"$fulfilled", 0}}, apiRemaining}},
-			}},
-		}},
-		bson.M{"$set": bson.M{
-			"fulfilled": bson.M{"$max": bson.A{
-				"$fulfilled",
-				bson.M{"$subtract": bson.A{"$quantity", apiRemaining}},
-			}},
-		}},
-	}
+	pipeline := buildUpsertFromAPIPipeline(
+		userID, countryID, muID, itemCode, side, apiRemaining, price, since, now,
+	)
 
 	res, err := s.coll.UpdateOne(
 		ctx,
@@ -146,6 +165,58 @@ func (s *TradeOfferStore) UpsertFromAPI(
 		return false, err
 	}
 	return res.UpsertedCount > 0, nil
+}
+
+// OfferSighting carries the parameters of a single API top-orders entry for a
+// bulk upsert. It mirrors the argument list of UpsertFromAPI.
+type OfferSighting struct {
+	ID           bson.ObjectID
+	UserID       bson.ObjectID
+	CountryID    *bson.ObjectID
+	MuID         *bson.ObjectID
+	ItemCode     string
+	Side         enums.TradeSide
+	APIRemaining int
+	Price        float64
+	Since        time.Time
+}
+
+// BulkUpsertFromAPI applies a batch of API top-orders sightings in a single
+// unordered bulk write, using the same monotonic pipeline as UpsertFromAPI.
+// It returns the _ids that were freshly inserted (had no prior doc), so the
+// caller can run ReconcileSynthetic on exactly those offers.
+func (s *TradeOfferStore) BulkUpsertFromAPI(ctx context.Context, sightings []OfferSighting) ([]bson.ObjectID, error) {
+	if len(sightings) == 0 {
+		return nil, nil
+	}
+
+	now := time.Now().UTC()
+	ops := make([]mongo.WriteModel, len(sightings))
+	for i := range sightings {
+		sg := sightings[i]
+		pipeline := buildUpsertFromAPIPipeline(
+			sg.UserID, sg.CountryID, sg.MuID, sg.ItemCode, sg.Side,
+			sg.APIRemaining, sg.Price, sg.Since, now,
+		)
+		ops[i] = mongo.NewUpdateOneModel().
+			SetFilter(bson.D{{Key: "_id", Value: sg.ID}}).
+			SetUpdate(pipeline).
+			SetUpsert(true)
+	}
+
+	res, err := s.coll.BulkWrite(ctx, ops, options.BulkWrite().SetOrdered(false))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res.UpsertedIDs) == 0 {
+		return nil, nil
+	}
+	inserted := make([]bson.ObjectID, 0, len(res.UpsertedIDs))
+	for idx := range res.UpsertedIDs {
+		inserted = append(inserted, sightings[idx].ID)
+	}
+	return inserted, nil
 }
 
 // FindByMatch returns the offer (if any) for a given (userID, itemCode, side, since).

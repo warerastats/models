@@ -23,6 +23,7 @@ type Country struct {
 	SpecialisationItemCode *string         `bson:"specialisation,omitempty"`
 	RulingPartyID          *bson.ObjectID  `bson:"rulingPartyId,omitempty"`
 	LatestObject           json.RawMessage `bson:"raw"`
+	RawHash                string          `bson:"rawHash,omitempty"`
 }
 
 type CountryStore struct {
@@ -40,12 +41,12 @@ func NewCountryStore(ctx context.Context, db *mongo.Database) *CountryStore {
 func (s *CountryStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
-			{Key: "_id", Value: 1},
+			{Key: "rulingPartyId", Value: 1},
 		},
 	})
 	if err != nil {
 		slog.Error(
-			"Failed creating index on countries._id",
+			"Failed creating index on countries.rulingPartyId",
 			"error", err,
 		)
 		return
@@ -63,7 +64,17 @@ func (s *CountryStore) Get(ctx context.Context, id bson.ObjectID) (*Country, err
 
 func (s *CountryStore) UpsertCountry(ctx context.Context, id bson.ObjectID, data Country) error {
 	data.ID = id
-	_, err := s.coll.ReplaceOne(ctx,
+	hash := hashRaw(data.LatestObject)
+	data.RawHash = hash
+
+	skip, err := rawUnchanged(ctx, s.coll, id, hash)
+	if err != nil {
+		return err
+	} else if skip {
+		return nil
+	}
+
+	_, err = s.coll.ReplaceOne(ctx,
 		bson.D{{Key: "_id", Value: id}},
 		data,
 		options.Replace().SetUpsert(true),

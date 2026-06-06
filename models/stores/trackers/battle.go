@@ -3,6 +3,7 @@ package trackers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -24,6 +25,7 @@ type Battle struct {
 	EndedAt           *time.Time      `bson:"endedAt,omitempty"`
 	LastUpdated       time.Time       `bson:"updated"`
 	LatestObject      json.RawMessage `bson:"raw"`
+	RawHash           string          `bson:"rawHash,omitempty"`
 }
 
 type BattleStore struct {
@@ -40,18 +42,6 @@ func NewBattleStore(ctx context.Context, db *mongo.Database) *BattleStore {
 
 func (s *BattleStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "_id", Value: 1},
-		},
-	})
-	if err != nil {
-		slog.Error(
-			"Failed creating index on battles._id",
-			"error", err,
-		)
-	}
-
-	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "active", Value: 1},
 		},
@@ -88,7 +78,31 @@ func (s *BattleStore) Get(ctx context.Context, id bson.ObjectID) (*Battle, error
 
 func (s *BattleStore) UpsertBattle(ctx context.Context, id bson.ObjectID, data Battle) error {
 	data.ID = id
-	_, err := s.coll.ReplaceOne(ctx,
+	hash := hashRaw(data.LatestObject)
+	data.RawHash = hash
+
+	var existing struct {
+		RawHash string `bson:"rawHash"`
+	}
+	err := s.coll.FindOne(ctx,
+		bson.D{{Key: "_id", Value: id}},
+		options.FindOne().SetProjection(bson.D{{Key: "rawHash", Value: 1}}),
+	).Decode(&existing)
+	switch {
+	case err == nil:
+		if hash != "" && existing.RawHash == hash {
+			_, err = s.coll.UpdateOne(ctx,
+				bson.D{{Key: "_id", Value: id}},
+				bson.D{{Key: "$set", Value: bson.D{{Key: "updated", Value: data.LastUpdated}}}},
+			)
+			return err
+		}
+	case errors.Is(err, mongo.ErrNoDocuments):
+	default:
+		return err
+	}
+
+	_, err = s.coll.ReplaceOne(ctx,
 		bson.D{{Key: "_id", Value: id}},
 		data,
 		options.Replace().SetUpsert(true),

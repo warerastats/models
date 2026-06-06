@@ -21,6 +21,7 @@ type Employee struct {
 	JoinedAt               time.Time       `bson:"joinedAt"`
 	LastFidelityIncreaseAt time.Time       `bson:"lastFidelityIncreaseAt"`
 	LatestObject           json.RawMessage `bson:"raw"`
+	RawHash                string          `bson:"rawHash,omitempty"`
 }
 
 type EmployeeStore struct {
@@ -37,19 +38,6 @@ func NewEmployeeStore(ctx context.Context, db *mongo.Database) *EmployeeStore {
 
 func (s *EmployeeStore) ensureIndex(ctx context.Context) {
 	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{
-			{Key: "_id", Value: 1},
-		},
-	})
-	if err != nil {
-		slog.Error(
-			"Failed creating index on employees._id",
-			"error", err,
-		)
-		return
-	}
-
-	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{
 			{Key: "userId", Value: 1},
 		},
@@ -113,7 +101,17 @@ func (s *EmployeeStore) GetByCompany(ctx context.Context, companyID bson.ObjectI
 
 func (s *EmployeeStore) Upsert(ctx context.Context, id bson.ObjectID, data Employee) error {
 	data.ID = id
-	_, err := s.coll.ReplaceOne(ctx,
+	hash := hashRaw(data.LatestObject)
+	data.RawHash = hash
+
+	skip, err := rawUnchanged(ctx, s.coll, id, hash)
+	if err != nil {
+		return err
+	} else if skip {
+		return nil
+	}
+
+	_, err = s.coll.ReplaceOne(ctx,
 		bson.D{{Key: "_id", Value: id}},
 		data,
 		options.Replace().SetUpsert(true),
