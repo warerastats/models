@@ -18,6 +18,22 @@ func timeRange(field string, from, to time.Time) bson.E {
 	}}
 }
 
+// optionalTimeRange builds a $gte/$lte bound for whichever of from/to is set,
+// returning ok=false when neither bound is provided.
+func optionalTimeRange(field string, from, to *time.Time) (bson.E, bool) {
+	bounds := bson.D{}
+	if from != nil {
+		bounds = append(bounds, bson.E{Key: "$gte", Value: *from})
+	}
+	if to != nil {
+		bounds = append(bounds, bson.E{Key: "$lte", Value: *to})
+	}
+	if len(bounds) == 0 {
+		return bson.E{}, false
+	}
+	return bson.E{Key: field, Value: bounds}, true
+}
+
 // GetByCountryRange returns a country's hourly tax flows in [from, to], oldest first.
 func (s *CountryTaxFlowStore) GetByCountryRange(ctx context.Context, countryID bson.ObjectID, from, to time.Time) ([]CountryTaxFlow, error) {
 	cursor, err := s.coll.Find(ctx,
@@ -79,10 +95,13 @@ func (s *EntityWealthReportStore) GetByEntityRange(ctx context.Context, entityTy
 	return out, nil
 }
 
-// GetByBattle returns a battle's per-interval damage report rows whose interval
-// falls in [from, to], oldest first, optionally narrowed to an entity type and/or entity ids.
-func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to time.Time, entityType *string, entityIDs []bson.ObjectID) ([]BattleDamageReport, error) {
-	filter := bson.D{{Key: "battleId", Value: battleID}, timeRange("intervalStart", from, to)}
+// GetByBattle returns a battle's per-interval damage report rows, oldest first,
+// optionally narrowed to [from, to] and/or an entity type and/or entity ids.
+func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to *time.Time, entityType *string, entityIDs []bson.ObjectID) ([]BattleDamageReport, error) {
+	filter := bson.D{{Key: "battleId", Value: battleID}}
+	if r, ok := optionalTimeRange("intervalStart", from, to); ok {
+		filter = append(filter, r)
+	}
 	if entityType != nil {
 		filter = append(filter, bson.E{Key: "entityType", Value: *entityType})
 	}
