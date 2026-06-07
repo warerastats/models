@@ -80,10 +80,17 @@ func (s *EntityWealthReportStore) GetByEntityRange(ctx context.Context, entityTy
 }
 
 // GetByBattle returns a battle's per-interval damage report rows whose interval
-// falls in [from, to], oldest first.
-func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to time.Time) ([]BattleDamageReport, error) {
+// falls in [from, to], oldest first, optionally narrowed to an entity type and/or entity ids.
+func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to time.Time, entityType *string, entityIDs []bson.ObjectID) ([]BattleDamageReport, error) {
+	filter := bson.D{{Key: "battleId", Value: battleID}, timeRange("intervalStart", from, to)}
+	if entityType != nil {
+		filter = append(filter, bson.E{Key: "entityType", Value: *entityType})
+	}
+	if len(entityIDs) > 0 {
+		filter = append(filter, bson.E{Key: "entityId", Value: bson.D{{Key: "$in", Value: entityIDs}}})
+	}
 	cursor, err := s.coll.Find(ctx,
-		bson.D{{Key: "battleId", Value: battleID}, timeRange("intervalStart", from, to)},
+		filter,
 		options.Find().SetSort(bson.D{{Key: "intervalStart", Value: 1}}),
 	)
 	if err != nil {
