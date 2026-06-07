@@ -262,6 +262,38 @@ func (s *BattleOrderChangeStore) ListByBattle(ctx context.Context, battleID bson
 	return listByField[BattleOrderChange](ctx, s.coll, "battleId", battleID, before, limit)
 }
 
+// ListByEntity returns order changes for a given entity kind and id, newest first, keyset-paginated.
+func (s *BattleOrderChangeStore) ListByEntity(ctx context.Context, kind string, entityID bson.ObjectID, before *bson.ObjectID, limit int) ([]BattleOrderChange, error) {
+	filter := bson.D{
+		{Key: "kind", Value: kind},
+		{Key: "entityId", Value: entityID},
+	}
+	if before != nil {
+		filter = append(filter, bson.E{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}})
+	}
+	l := int64(20)
+	switch {
+	case limit > 200:
+		l = 200
+	case limit > 0:
+		l = int64(limit)
+	}
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().SetSort(bson.D{{Key: "_id", Value: -1}}).SetLimit(l),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []BattleOrderChange
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ListBattleIDsByMu returns the distinct battle ids a MU set an order in, newest
 // first, keyset-paginated on the battle id.
 func (s *BattleOrderChangeStore) ListBattleIDsByMu(ctx context.Context, muID bson.ObjectID, before *bson.ObjectID, limit int) ([]bson.ObjectID, error) {
