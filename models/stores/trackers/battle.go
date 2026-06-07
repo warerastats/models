@@ -182,6 +182,39 @@ func (s *BattleStore) GetActiveIDs(ctx context.Context) ([]bson.ObjectID, error)
 	return ids, nil
 }
 
+// GetInactiveIDs returns the ids of all battles that are no longer active.
+func (s *BattleStore) GetInactiveIDs(ctx context.Context) ([]bson.ObjectID, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "active", Value: false}},
+		options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var result struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+
+		err := cursor.Decode(&result)
+		if err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, result.ID)
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
 // GetUnfinalized returns battles that were marked inactive by the region
 // reconciliation path but never finalised (winnerSide still nil). These are
 // typically battles that ended while the BattleRanking in-memory tracking map

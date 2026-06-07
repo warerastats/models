@@ -902,6 +902,42 @@ func (s *DamageStore) GetBattleIDsByPartyPaged(ctx context.Context, partyID bson
 	return out, cursor.Err()
 }
 
+// GetBattleIDsByUserPaged returns distinct battle ids a user dealt damage in,
+// newest first, keyset-paginated by battle id.
+func (s *DamageStore) GetBattleIDsByUserPaged(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]bson.ObjectID, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "userId", Value: userID}}}},
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$battleId"}}}},
+	}
+	if before != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}},
+		}}})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "_id", Value: -1}}}},
+		bson.D{{Key: "$limit", Value: pageLimit(limit)}},
+	)
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []bson.ObjectID
+	for cursor.Next(ctx) {
+		var r struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		err = cursor.Decode(&r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r.ID)
+	}
+	return out, cursor.Err()
+}
+
 // PartyParticipationAgg is a party's cumulative battle damage rollup.
 type PartyParticipationAgg struct {
 	TotalDamage int64 `bson:"totalDamage"`

@@ -125,6 +125,20 @@ func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson
 	return out, nil
 }
 
+// BattleIDsWithReports returns the distinct battle ids that already have at least one damage report row.
+func (s *BattleDamageReportStore) BattleIDsWithReports(ctx context.Context) ([]bson.ObjectID, error) {
+	res := s.coll.Distinct(ctx, "battleId", bson.D{})
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+	var out []bson.ObjectID
+	err := res.Decode(&out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetRange returns market-state snapshots in [from, to], oldest first.
 func (s *MarketStateStore) GetRange(ctx context.Context, from, to time.Time) ([]MarketState, error) {
 	cursor, err := s.coll.Find(ctx,
