@@ -969,10 +969,14 @@ func (s *DamageStore) AggregateBattleDamage(ctx context.Context, battleID bson.O
 	return out, nil
 }
 
-// GetByOwnerPaged returns items owned by a user, newest first, keyset-paginated.
-func (s *ItemStore) GetByOwnerPaged(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int) ([]Item, error) {
-	filter := withCursor(bson.D{{Key: "ownerUserId", Value: userID}}, before)
-	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+// GetByOwnerPaged returns items owned by a user, newest first, keyset-paginated,
+// optionally narrowed to a status.
+func (s *ItemStore) GetByOwnerPaged(ctx context.Context, userID bson.ObjectID, before *bson.ObjectID, limit int, status *enums.ItemStatus) ([]Item, error) {
+	base := bson.D{{Key: "ownerUserId", Value: userID}}
+	if status != nil {
+		base = append(base, bson.E{Key: "status", Value: *status})
+	}
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
 	if err != nil {
 		return nil, err
 	}
