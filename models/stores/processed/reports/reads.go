@@ -95,6 +95,44 @@ func (s *EntityWealthReportStore) GetByEntityRange(ctx context.Context, entityTy
 	return out, nil
 }
 
+// GetByCountryRange returns a country's daily money-flow reports in [from, to], oldest first.
+func (s *CountryMoneyFlowReportStore) GetByCountryRange(ctx context.Context, countryID bson.ObjectID, from, to time.Time) ([]CountryMoneyFlowReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "countryId", Value: countryID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CountryMoneyFlowReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByMuRange returns an MU's daily money-flow reports in [from, to], oldest first.
+func (s *MuCountryMoneyFlowReportStore) GetByMuRange(ctx context.Context, muID bson.ObjectID, from, to time.Time) ([]MuCountryMoneyFlowReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "muId", Value: muID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []MuCountryMoneyFlowReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetByBattle returns a battle's per-interval damage report rows, oldest first,
 // optionally narrowed to [from, to] and/or an entity type and/or entity ids.
 func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to *time.Time, entityType *string, entityIDs []bson.ObjectID) ([]BattleDamageReport, error) {

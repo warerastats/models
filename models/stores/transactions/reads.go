@@ -549,3 +549,8 @@ func (s *DismantleTransactionStore) EarliestTime(ctx context.Context) (time.Time
 func (s *MarketTransactionStore) MoneyByField(ctx context.Context, field string, since, until time.Time) ([]IDTotal, error) {
 	return sumMoneyByField(ctx, s.coll, field, since, until)
 }
+
+// EarliestTime returns the oldest equipment-market transaction's time and whether any exist.
+func (s *MarketTransactionStore) EarliestTime(ctx context.Context) (time.Time, bool, error) {
+	return earliestObjectIDTime(ctx, s.coll)
+}
