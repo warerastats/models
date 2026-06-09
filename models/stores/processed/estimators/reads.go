@@ -2,9 +2,11 @@ package estimators
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
@@ -110,4 +112,19 @@ func (s *InflationStore) GetRange(ctx context.Context, from, to time.Time) ([]In
 		return nil, err
 	}
 	return out, nil
+}
+
+// GetLatest returns the most recent inflation point, or false when none.
+func (s *InflationStore) GetLatest(ctx context.Context) (*InflationPoint, bool, error) {
+	var out InflationPoint
+	err := s.coll.FindOne(ctx, bson.D{},
+		options.FindOne().SetSort(bson.D{{Key: "dayStart", Value: -1}}),
+	).Decode(&out)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &out, true, nil
 }

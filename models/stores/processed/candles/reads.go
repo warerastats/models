@@ -2,9 +2,11 @@ package candles
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
@@ -31,6 +33,22 @@ func (s *ItemCandleStore) GetRange(ctx context.Context, itemCode string, from, t
 	return out, nil
 }
 
+// GetLatest returns the most recent candle for an item code, or false when none.
+func (s *ItemCandleStore) GetLatest(ctx context.Context, itemCode string) (*ItemCandle, bool, error) {
+	var out ItemCandle
+	err := s.coll.FindOne(ctx,
+		bson.D{{Key: "itemCode", Value: itemCode}},
+		options.FindOne().SetSort(bson.D{{Key: "bucketStart", Value: -1}}),
+	).Decode(&out)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &out, true, nil
+}
+
 // GetRange returns wage OHLC candles whose bucketStart falls in [from, to],
 // oldest first.
 func (s *WageCandleStore) GetRange(ctx context.Context, from, to time.Time) ([]WageCandle, error) {
@@ -49,4 +67,19 @@ func (s *WageCandleStore) GetRange(ctx context.Context, from, to time.Time) ([]W
 		return nil, err
 	}
 	return out, nil
+}
+
+// GetLatest returns the most recent wage candle, or false when none.
+func (s *WageCandleStore) GetLatest(ctx context.Context) (*WageCandle, bool, error) {
+	var out WageCandle
+	err := s.coll.FindOne(ctx, bson.D{},
+		options.FindOne().SetSort(bson.D{{Key: "bucketStart", Value: -1}}),
+	).Decode(&out)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &out, true, nil
 }
