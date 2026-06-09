@@ -287,6 +287,39 @@ func (s *UserStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]User, e
 	return out, nil
 }
 
+// UserAttrs is a lightweight projection of a user's country and MU.
+type UserAttrs struct {
+	ID        bson.ObjectID  `bson:"_id"`
+	CountryID bson.ObjectID  `bson:"countryId"`
+	MuID      *bson.ObjectID `bson:"muId,omitempty"`
+}
+
+// GetManyAttrs returns only id, countryId, and muId for the given user ids.
+func (s *UserStore) GetManyAttrs(ctx context.Context, ids []bson.ObjectID) ([]UserAttrs, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}},
+		options.Find().SetProjection(bson.D{
+			{Key: "_id", Value: 1},
+			{Key: "countryId", Value: 1},
+			{Key: "muId", Value: 1},
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []UserAttrs
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetActiveSince returns ids of users whose lastDate is at/after the cutoff.
 func (s *UserStore) GetActiveSince(ctx context.Context, cutoff time.Time) ([]bson.ObjectID, error) {
 	cursor, err := s.coll.Find(ctx,
