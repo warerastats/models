@@ -306,6 +306,34 @@ func (s *UserStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]User, e
 	return out, nil
 }
 
+// GetManyBasic returns user documents without heavy fields (raw, rawHash, wealth, caseStats, skills).
+func (s *UserStore) GetManyBasic(ctx context.Context, ids []bson.ObjectID) ([]User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}},
+		options.Find().SetProjection(bson.D{
+			{Key: "raw", Value: 0},
+			{Key: "rawHash", Value: 0},
+			{Key: "wealth", Value: 0},
+			{Key: "caseStats", Value: 0},
+			{Key: "skills", Value: 0},
+		}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []User
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserAttrs is a lightweight projection of a user's country and MU.
 type UserAttrs struct {
 	ID        bson.ObjectID  `bson:"_id"`
@@ -743,6 +771,31 @@ func (s *PartyStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Party,
 // GetByRegion returns mus headquartered in a region.
 func (s *MuStore) GetByRegion(ctx context.Context, regionID bson.ObjectID) ([]Mu, error) {
 	cursor, err := s.coll.Find(ctx, bson.D{{Key: "regionId", Value: regionID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Mu
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetManyBasic returns mu documents without heavy fields (raw, members).
+func (s *MuStore) GetManyBasic(ctx context.Context, ids []bson.ObjectID) ([]Mu, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}},
+		options.Find().SetProjection(bson.D{
+			{Key: "raw", Value: 0},
+			{Key: "members", Value: 0},
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}

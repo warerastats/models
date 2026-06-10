@@ -14,6 +14,7 @@ type MarketTransaction struct {
 	SellerID bson.ObjectID `bson:"sellerId"`
 	BuyerID  bson.ObjectID `bson:"buyerId"`
 	ItemID   bson.ObjectID `bson:"itemId"`
+	ItemCode string        `bson:"itemCode,omitempty"`
 	Money    float64       `bson:"money"`
 }
 
@@ -64,6 +65,20 @@ func (s *MarketTransactionStore) ensureIndex(ctx context.Context) {
 	if err != nil {
 		slog.Error(
 			"Failed creating index on market_transactions.itemId",
+			"error", err,
+		)
+		return
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "itemCode", Value: 1},
+			{Key: "_id", Value: -1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating index on market_transactions.{itemCode,_id}",
 			"error", err,
 		)
 		return
