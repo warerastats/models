@@ -239,6 +239,25 @@ func (s *CountryStore) GetAll(ctx context.Context) ([]Country, error) {
 	return out, nil
 }
 
+// GetMany returns country documents for the given ids.
+func (s *CountryStore) GetMany(ctx context.Context, ids []bson.ObjectID) ([]Country, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Country
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetAll returns every company tracker document.
 func (s *CompanyStore) GetAll(ctx context.Context) ([]Company, error) {
 	cursor, err := s.coll.Find(ctx, bson.D{})
