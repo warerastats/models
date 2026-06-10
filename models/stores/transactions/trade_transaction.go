@@ -89,6 +89,20 @@ func (s *TradeTransactionStore) ensureIndex(ctx context.Context) {
 		)
 		return
 	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "itemCode", Value: 1},
+			{Key: "_id", Value: -1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating index on trade_transactions.itemCode._id",
+			"error", err,
+		)
+		return
+	}
 }
 
 func (s *TradeTransactionStore) Create(

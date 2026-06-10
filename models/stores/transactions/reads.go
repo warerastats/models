@@ -372,6 +372,12 @@ func withCursor(base bson.D, before *bson.ObjectID) bson.D {
 
 // newestFirst is a Find option set sorting by _id descending with a clamped limit.
 func newestFirst(limit int) *options.FindOptionsBuilder {
+	l := clampedLimit(limit)
+	return options.Find().SetSort(bson.D{{Key: "_id", Value: -1}}).SetLimit(l)
+}
+
+// clampedLimit returns a bounded page size in [1, 200] with default 20.
+func clampedLimit(limit int) int64 {
 	l := int64(20)
 	switch {
 	case limit > 200:
@@ -379,7 +385,7 @@ func newestFirst(limit int) *options.FindOptionsBuilder {
 	case limit > 0:
 		l = int64(limit)
 	}
-	return options.Find().SetSort(bson.D{{Key: "_id", Value: -1}}).SetLimit(l)
+	return l
 }
 
 // ByUser returns trade transactions where the user is the buyer or seller,
@@ -390,6 +396,24 @@ func (s *TradeTransactionStore) ByUser(ctx context.Context, userID bson.ObjectID
 		bson.D{{Key: "buyerId", Value: userID}},
 	}}}
 	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []TradeTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ByItemCodePaged returns trade transactions for an item code, newest first,
+// keyset-paginated.
+func (s *TradeTransactionStore) ByItemCodePaged(ctx context.Context, itemCode string, before *bson.ObjectID, limit int) ([]TradeTransaction, error) {
+	filter := withCursor(bson.D{{Key: "itemCode", Value: itemCode}}, before)
+	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
 	if err != nil {
 		return nil, err
 	}
@@ -458,6 +482,51 @@ func (s *DismantleTransactionStore) ByUser(ctx context.Context, userID bson.Obje
 func (s *MarketTransactionStore) GetByItemPaged(ctx context.Context, itemID bson.ObjectID, before *bson.ObjectID, limit int) ([]MarketTransaction, error) {
 	filter := withCursor(bson.D{{Key: "itemId", Value: itemID}}, before)
 	cursor, err := s.coll.Find(ctx, filter, newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []MarketTransaction
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ByItemCodePaged returns equipment-market transactions for an item code,
+// newest first, keyset-paginated.
+func (s *MarketTransactionStore) ByItemCodePaged(ctx context.Context, itemCode string, before *bson.ObjectID, limit int) ([]MarketTransaction, error) {
+	match := bson.D{}
+	if before != nil {
+		match = append(match, bson.E{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}})
+	}
+
+	pipeline := mongo.Pipeline{}
+	if len(match) > 0 {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: match}})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "items"},
+			{Key: "localField", Value: "itemId"},
+			{Key: "foreignField", Value: "_id"},
+			{Key: "as", Value: "item"},
+		}}},
+		bson.D{{Key: "$unwind", Value: "$item"}},
+		bson.D{{Key: "$match", Value: bson.D{{Key: "item.itemCode", Value: itemCode}}}},
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "_id", Value: -1}}}},
+		bson.D{{Key: "$limit", Value: clampedLimit(limit)}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "sellerId", Value: 1},
+			{Key: "buyerId", Value: 1},
+			{Key: "itemId", Value: 1},
+			{Key: "money", Value: 1},
+		}}},
+	)
+
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
