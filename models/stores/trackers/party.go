@@ -24,10 +24,11 @@ type Party struct {
 	MemberUserIDs []bson.ObjectID `bson:"members"`
 	AvatarUrl     string          `bson:"avatarUrl"`
 	Ethics        struct {
-		Militarism    int `bson:"militarism"`
-		Isolationism  int `bson:"isolationism"`
-		Imperialism   int `bson:"imperialism"`
-		Industrialism int `bson:"industrialism"`
+		Unethical     bool `bson:"unethical"`
+		Militarism    int  `bson:"militarism"`
+		Isolationism  int  `bson:"isolationism"`
+		Imperialism   int  `bson:"imperialism"`
+		Industrialism int  `bson:"industrialism"`
 	} `bson:"ethics"`
 	LastUpdated  time.Time       `bson:"lastUpdated,omitempty"`
 	LastSeen     time.Time       `bson:"lastSeen,omitempty"`

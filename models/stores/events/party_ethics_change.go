@@ -13,10 +13,11 @@ type PartyEthicsChange struct {
 	ID      bson.ObjectID `bson:"_id,omitempty"`
 	PartyID bson.ObjectID `bson:"partyId"`
 	Ethics  struct {
-		Militarism    int `bson:"militarism"`
-		Isolationism  int `bson:"isolationism"`
-		Imperialism   int `bson:"imperialism"`
-		Industrialism int `bson:"industrialism"`
+		Unethical     bool `bson:"unethical"`
+		Militarism    int  `bson:"militarism"`
+		Isolationism  int  `bson:"isolationism"`
+		Imperialism   int  `bson:"imperialism"`
+		Industrialism int  `bson:"industrialism"`
 	} `bson:"ethics"`
 }
 
