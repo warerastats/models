@@ -1161,3 +1161,160 @@ func (s *TradeOfferStore) GetByUserPaged(ctx context.Context, userID bson.Object
 	}
 	return out, nil
 }
+
+// GetByAlliance returns countries that belong to an alliance.
+func (s *CountryStore) GetByAlliance(ctx context.Context, allianceID bson.ObjectID) ([]Country, error) {
+	cursor, err := s.coll.Find(ctx, bson.D{{Key: "allianceId", Value: allianceID}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Country
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DistinctAllianceIDs returns the set of non-nil allianceId values across all tracked countries.
+func (s *CountryStore) DistinctAllianceIDs(ctx context.Context) ([]bson.ObjectID, error) {
+	res := s.coll.Distinct(ctx, "allianceId", bson.D{
+		{Key: "allianceId", Value: bson.D{{Key: "$ne", Value: nil}}},
+	})
+	if err := res.Err(); err != nil {
+		return nil, err
+	}
+
+	var ids []bson.ObjectID
+	err := res.Decode(&ids)
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// GetByAlliancePaged returns battles an alliance fought in (attacker or defender),
+// newest first, keyset-paginated, narrowed by filter.
+func (s *BattleStore) GetByAlliancePaged(ctx context.Context, allianceID bson.ObjectID, filter BattleFilter, before *bson.ObjectID, limit int) ([]Battle, error) {
+	base := applyBattleFilter(bson.D{{Key: "$or", Value: bson.A{
+		bson.D{{Key: "attackerAllianceId", Value: allianceID}},
+		bson.D{{Key: "defenderAllianceId", Value: allianceID}},
+	}}}, filter)
+	cursor, err := s.coll.Find(ctx, withCursor(base, before), newestFirst(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []Battle
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetBattleIDsByAlliancePaged returns distinct battle ids an alliance dealt damage in,
+// newest first, keyset-paginated by battle id.
+func (s *DamageStore) GetBattleIDsByAlliancePaged(ctx context.Context, allianceID bson.ObjectID, before *bson.ObjectID, limit int) ([]bson.ObjectID, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "allianceId", Value: allianceID}}}},
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$battleId"}}}},
+	}
+	if before != nil {
+		pipeline = append(pipeline, bson.D{{Key: "$match", Value: bson.D{
+			{Key: "_id", Value: bson.D{{Key: "$lt", Value: *before}}},
+		}}})
+	}
+	pipeline = append(pipeline,
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "_id", Value: -1}}}},
+		bson.D{{Key: "$limit", Value: pageLimit(limit)}},
+	)
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []bson.ObjectID
+	for cursor.Next(ctx) {
+		var r struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		err = cursor.Decode(&r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r.ID)
+	}
+	return out, cursor.Err()
+}
+
+// AllianceParticipationAgg is an alliance's cumulative battle damage rollup.
+type AllianceParticipationAgg struct {
+	TotalDamage int64 `bson:"totalDamage"`
+	BattleCount int   `bson:"battleCount"`
+}
+
+// AggregateAllianceParticipation rolls up an alliance's total damage and distinct battle count.
+func (s *DamageStore) AggregateAllianceParticipation(ctx context.Context, allianceID bson.ObjectID) (AllianceParticipationAgg, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "allianceId", Value: allianceID}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "totalDamage", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
+			{Key: "battles", Value: bson.D{{Key: "$addToSet", Value: "$battleId"}}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "totalDamage", Value: 1},
+			{Key: "battleCount", Value: bson.D{{Key: "$size", Value: "$battles"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return AllianceParticipationAgg{}, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []AllianceParticipationAgg
+	err = cursor.All(ctx, &rows)
+	if err != nil {
+		return AllianceParticipationAgg{}, err
+	}
+	if len(rows) == 0 {
+		return AllianceParticipationAgg{}, nil
+	}
+	return rows[0], nil
+}
+
+// AggregateAllianceDamage ranks users by total damage within an alliance over a time range.
+func (s *DamageStore) AggregateAllianceDamage(ctx context.Context, allianceID bson.ObjectID, limit int) ([]UserDamageAgg, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "allianceId", Value: allianceID}}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$userId"},
+			{Key: "totalDamage", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
+			{Key: "battles", Value: bson.D{{Key: "$addToSet", Value: "$battleId"}}},
+		}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "totalDamage", Value: 1},
+			{Key: "battleCount", Value: bson.D{{Key: "$size", Value: "$battles"}}},
+		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "totalDamage", Value: -1}}}},
+		{{Key: "$limit", Value: pageLimit(limit)}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []UserDamageAgg
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

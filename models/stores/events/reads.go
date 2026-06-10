@@ -219,6 +219,14 @@ func (s *CountrySpecialisationChangeStore) ListByCountry(ctx context.Context, co
 	return listByField[CountrySpecialisationChange](ctx, s.coll, "countryId", countryID, before, limit)
 }
 
+func (s *CountryAllianceJoinStore) ListByCountry(ctx context.Context, countryID bson.ObjectID, before *bson.ObjectID, limit int) ([]CountryAllianceJoin, error) {
+	return listByField[CountryAllianceJoin](ctx, s.coll, "countryId", countryID, before, limit)
+}
+
+func (s *CountryAllianceLeaveStore) ListByCountry(ctx context.Context, countryID bson.ObjectID, before *bson.ObjectID, limit int) ([]CountryAllianceLeave, error) {
+	return listByField[CountryAllianceLeave](ctx, s.coll, "countryId", countryID, before, limit)
+}
+
 // Region-scoped history lists.
 
 func (s *RegionOwnerChangeStore) ListByRegion(ctx context.Context, regionID bson.ObjectID, before *bson.ObjectID, limit int) ([]RegionOwnerChange, error) {

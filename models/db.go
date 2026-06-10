@@ -59,18 +59,21 @@ type ProcessedEstimatorsCollection struct {
 }
 
 type ProcessedReportsCollection struct {
-	MarketState        *processedreports.MarketStateStore
-	EquipmentPricing   *processedreports.EquipmentPricingStore
-	ItemMarketReport   *processedreports.ItemMarketReportStore
-	WageMarketState    *processedreports.WageMarketStateStore
-	CasesReport        *processedreports.CasesReportStore
-	DismantleReport    *processedreports.DismantleReportStore
-	BattleDamageReport *processedreports.BattleDamageReportStore
-	CountryTaxFlow     *processedreports.CountryTaxFlowStore
-	UserFinanceReport  *processedreports.UserFinanceReportStore
-	EntityWealthReport *processedreports.EntityWealthReportStore
-	CountryMoneyFlow   *processedreports.CountryMoneyFlowReportStore
-	MuCountryMoneyFlow *processedreports.MuCountryMoneyFlowReportStore
+	MarketState              *processedreports.MarketStateStore
+	EquipmentPricing         *processedreports.EquipmentPricingStore
+	ItemMarketReport         *processedreports.ItemMarketReportStore
+	WageMarketState          *processedreports.WageMarketStateStore
+	CasesReport              *processedreports.CasesReportStore
+	DismantleReport          *processedreports.DismantleReportStore
+	BattleDamageReport       *processedreports.BattleDamageReportStore
+	CountryTaxFlow           *processedreports.CountryTaxFlowStore
+	UserFinanceReport        *processedreports.UserFinanceReportStore
+	EntityWealthReport       *processedreports.EntityWealthReportStore
+	CountryMoneyFlow         *processedreports.CountryMoneyFlowReportStore
+	MuCountryMoneyFlow       *processedreports.MuCountryMoneyFlowReportStore
+	CountryAllianceMoneyFlow *processedreports.CountryAllianceMoneyFlowReportStore
+	AllianceMoneyFlow        *processedreports.AllianceMoneyFlowReportStore
+	MuAllianceMoneyFlow      *processedreports.MuAllianceMoneyFlowReportStore
 }
 
 type EventsCollection struct {
@@ -88,6 +91,8 @@ type EventsCollection struct {
 
 	CountryRulingPartyChange    *events.CountryRulingPartyChangeStore
 	CountrySpecialisationChange *events.CountrySpecialisationChangeStore
+	CountryAllianceJoin         *events.CountryAllianceJoinStore
+	CountryAllianceLeave        *events.CountryAllianceLeaveStore
 
 	CompanyRegionChange   *events.CompanyRegionChangeStore
 	CompanyItemCodeChange *events.CompanyItemCodeChangeStore
@@ -130,6 +135,7 @@ type TrackersCollection struct {
 	Company    *trackers.CompanyStore
 	Employee   *trackers.EmployeeStore
 	TradeOffer *trackers.TradeOfferStore
+	Alliance   *trackers.AllianceStore
 }
 
 func Init(context.Context) (*Collections, error) {
@@ -192,6 +198,7 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 			Company:    trackers.NewCompanyStore(ctx, db),
 			Employee:   trackers.NewEmployeeStore(ctx, db),
 			TradeOffer: trackers.NewTradeOfferStore(ctx, db),
+			Alliance:   trackers.NewAllianceStore(ctx, db),
 		},
 
 		States: StatesCollection{
@@ -218,18 +225,21 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 				BattleParticipation: processedestimators.NewBattleParticipationStore(ctx, db),
 			},
 			Reports: ProcessedReportsCollection{
-				MarketState:        processedreports.NewMarketStateStore(ctx, db),
-				EquipmentPricing:   processedreports.NewEquipmentPricingStore(ctx, db),
-				ItemMarketReport:   processedreports.NewItemMarketReportStore(ctx, db),
-				WageMarketState:    processedreports.NewWageMarketStateStore(ctx, db),
-				CasesReport:        processedreports.NewCasesReportStore(ctx, db),
-				DismantleReport:    processedreports.NewDismantleReportStore(ctx, db),
-				BattleDamageReport: processedreports.NewBattleDamageReportStore(ctx, db),
-				CountryTaxFlow:     processedreports.NewCountryTaxFlowStore(ctx, db),
-				UserFinanceReport:  processedreports.NewUserFinanceReportStore(ctx, db),
-				EntityWealthReport: processedreports.NewEntityWealthReportStore(ctx, db),
-				CountryMoneyFlow:   processedreports.NewCountryMoneyFlowReportStore(ctx, db),
-				MuCountryMoneyFlow: processedreports.NewMuCountryMoneyFlowReportStore(ctx, db),
+				MarketState:              processedreports.NewMarketStateStore(ctx, db),
+				EquipmentPricing:         processedreports.NewEquipmentPricingStore(ctx, db),
+				ItemMarketReport:         processedreports.NewItemMarketReportStore(ctx, db),
+				WageMarketState:          processedreports.NewWageMarketStateStore(ctx, db),
+				CasesReport:              processedreports.NewCasesReportStore(ctx, db),
+				DismantleReport:          processedreports.NewDismantleReportStore(ctx, db),
+				BattleDamageReport:       processedreports.NewBattleDamageReportStore(ctx, db),
+				CountryTaxFlow:           processedreports.NewCountryTaxFlowStore(ctx, db),
+				UserFinanceReport:        processedreports.NewUserFinanceReportStore(ctx, db),
+				EntityWealthReport:       processedreports.NewEntityWealthReportStore(ctx, db),
+				CountryMoneyFlow:         processedreports.NewCountryMoneyFlowReportStore(ctx, db),
+				MuCountryMoneyFlow:       processedreports.NewMuCountryMoneyFlowReportStore(ctx, db),
+				CountryAllianceMoneyFlow: processedreports.NewCountryAllianceMoneyFlowReportStore(ctx, db),
+				AllianceMoneyFlow:        processedreports.NewAllianceMoneyFlowReportStore(ctx, db),
+				MuAllianceMoneyFlow:      processedreports.NewMuAllianceMoneyFlowReportStore(ctx, db),
 			},
 		},
 
@@ -248,6 +258,8 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 
 			CountryRulingPartyChange:    events.NewCountryRulingPartyChangeStore(ctx, db),
 			CountrySpecialisationChange: events.NewCountrySpecialisationChangeStore(ctx, db),
+			CountryAllianceJoin:         events.NewCountryAllianceJoinStore(ctx, db),
+			CountryAllianceLeave:        events.NewCountryAllianceLeaveStore(ctx, db),
 
 			CompanyRegionChange:   events.NewCompanyRegionChangeStore(ctx, db),
 			CompanyItemCodeChange: events.NewCompanyItemCodeChangeStore(ctx, db),

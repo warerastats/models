@@ -24,6 +24,7 @@ type Country struct {
 	} `bson:"taxes"`
 	SpecialisationItemCode *string         `bson:"specialisation,omitempty"`
 	RulingPartyID          *bson.ObjectID  `bson:"rulingPartyId,omitempty"`
+	AllianceID             *bson.ObjectID  `bson:"allianceId,omitempty"`
 	LatestObject           json.RawMessage `bson:"raw"`
 	RawHash                string          `bson:"rawHash,omitempty"`
 }
@@ -51,7 +52,18 @@ func (s *CountryStore) ensureIndex(ctx context.Context) {
 			"Failed creating index on countries.rulingPartyId",
 			"error", err,
 		)
-		return
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "allianceId", Value: 1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating index on countries.allianceId",
+			"error", err,
+		)
 	}
 }
 

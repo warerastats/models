@@ -326,3 +326,60 @@ func (s *EquipmentPricingStore) GetSkills(ctx context.Context, itemCode string, 
 	}
 	return out, nil
 }
+
+// GetByCountryRange returns a country's daily alliance money-flow reports in [from, to], oldest first.
+func (s *CountryAllianceMoneyFlowReportStore) GetByCountryRange(ctx context.Context, countryID bson.ObjectID, from, to time.Time) ([]CountryAllianceMoneyFlowReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "countryId", Value: countryID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []CountryAllianceMoneyFlowReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByAllianceRange returns an alliance's daily money-flow reports in [from, to], oldest first.
+func (s *AllianceMoneyFlowReportStore) GetByAllianceRange(ctx context.Context, allianceID bson.ObjectID, from, to time.Time) ([]AllianceMoneyFlowReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "allianceId", Value: allianceID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []AllianceMoneyFlowReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetByMuRange returns an MU's daily alliance money-flow reports in [from, to], oldest first.
+func (s *MuAllianceMoneyFlowReportStore) GetByMuRange(ctx context.Context, muID bson.ObjectID, from, to time.Time) ([]MuAllianceMoneyFlowReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "muId", Value: muID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []MuAllianceMoneyFlowReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

@@ -13,19 +13,21 @@ import (
 )
 
 type Battle struct {
-	ID                bson.ObjectID   `bson:"_id"`
-	AttackerRegionID  *bson.ObjectID  `bson:"attackerRegionId,omitempty"`
-	AttackerCountryID bson.ObjectID   `bson:"attackerCountryId"`
-	AttackerDamages   int             `bson:"attackerDamages"`
-	DefenderRegionID  bson.ObjectID   `bson:"defenderRegionId"`
-	DefenderCountryID bson.ObjectID   `bson:"defenderCountryId"`
-	DefenderDamages   int             `bson:"defenderDamages"`
-	WinnerSide        *string         `bson:"winnerSide,omitempty"`
-	IsActive          bool            `bson:"active"`
-	EndedAt           *time.Time      `bson:"endedAt,omitempty"`
-	LastUpdated       time.Time       `bson:"updated"`
-	LatestObject      json.RawMessage `bson:"raw"`
-	RawHash           string          `bson:"rawHash,omitempty"`
+	ID                 bson.ObjectID   `bson:"_id"`
+	AttackerRegionID   *bson.ObjectID  `bson:"attackerRegionId,omitempty"`
+	AttackerCountryID  bson.ObjectID   `bson:"attackerCountryId"`
+	AttackerDamages    int             `bson:"attackerDamages"`
+	DefenderRegionID   bson.ObjectID   `bson:"defenderRegionId"`
+	DefenderCountryID  bson.ObjectID   `bson:"defenderCountryId"`
+	DefenderDamages    int             `bson:"defenderDamages"`
+	AttackerAllianceID *bson.ObjectID  `bson:"attackerAllianceId,omitempty"`
+	DefenderAllianceID *bson.ObjectID  `bson:"defenderAllianceId,omitempty"`
+	WinnerSide         *string         `bson:"winnerSide,omitempty"`
+	IsActive           bool            `bson:"active"`
+	EndedAt            *time.Time      `bson:"endedAt,omitempty"`
+	LastUpdated        time.Time       `bson:"updated"`
+	LatestObject       json.RawMessage `bson:"raw"`
+	RawHash            string          `bson:"rawHash,omitempty"`
 }
 
 type BattleStore struct {
@@ -102,6 +104,26 @@ func (s *BattleStore) ensureIndex(ctx context.Context) {
 	if err != nil {
 		slog.Error(
 			"Failed creating compound index on battles.{defenderRegionId,_id}",
+			"error", err,
+		)
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "attackerAllianceId", Value: 1}, {Key: "_id", Value: 1}},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on battles.{attackerAllianceId,_id}",
+			"error", err,
+		)
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "defenderAllianceId", Value: 1}, {Key: "_id", Value: 1}},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on battles.{defenderAllianceId,_id}",
 			"error", err,
 		)
 	}

@@ -18,6 +18,7 @@ type Damage struct {
 	Side         enums.Side     `bson:"side"`
 	UserID       bson.ObjectID  `bson:"userId"`
 	CountryID    bson.ObjectID  `bson:"countryId"`
+	AllianceID   *bson.ObjectID `bson:"allianceId,omitempty"`
 	MuID         *bson.ObjectID `bson:"muId,omitempty"`
 	PartyID      *bson.ObjectID `bson:"partyId,omitempty"`
 	WeaponID     *bson.ObjectID `bson:"weaponId,omitempty"`
@@ -83,6 +84,20 @@ func (s *DamageStore) ensureIndex(ctx context.Context) {
 	if err != nil {
 		slog.Error(
 			"Failed creating compound index on damages.{partyId,_id}",
+			"error", err,
+		)
+		return
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "allianceId", Value: 1},
+			{Key: "_id", Value: 1},
+		},
+	})
+	if err != nil {
+		slog.Error(
+			"Failed creating compound index on damages.{allianceId,_id}",
 			"error", err,
 		)
 		return
