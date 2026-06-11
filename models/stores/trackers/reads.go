@@ -473,9 +473,10 @@ type InventoryCount struct {
 	Count int `bson:"count"`
 }
 
-// AggregateActiveInventory counts non-destroyed equipment per owner and item
-// code, excluding DISMANTLED/BROKEN and empty placeholders.
-func (s *ItemStore) AggregateActiveInventory(ctx context.Context) ([]InventoryCount, error) {
+// StreamActiveInventory streams non-destroyed equipment counts per owner and
+// item code (excluding DISMANTLED/BROKEN and empty placeholders), sorted by
+// owner so callers can fold one user at a time without buffering the whole set.
+func (s *ItemStore) StreamActiveInventory(ctx context.Context, fn func(InventoryCount) error) error {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{
 			{Key: "itemCode", Value: bson.D{{Key: "$ne", Value: ""}}},
@@ -488,19 +489,26 @@ func (s *ItemStore) AggregateActiveInventory(ctx context.Context) ([]InventoryCo
 			}},
 			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
 		}}},
+		{{Key: "$sort", Value: bson.D{{Key: "_id.ownerUserId", Value: 1}}}},
 	}
-	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	cursor, err := s.coll.Aggregate(ctx, pipeline, options.Aggregate().SetAllowDiskUse(true))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer cursor.Close(ctx)
 
-	var out []InventoryCount
-	err = cursor.All(ctx, &out)
-	if err != nil {
-		return nil, err
+	for cursor.Next(ctx) {
+		var row InventoryCount
+		err = cursor.Decode(&row)
+		if err != nil {
+			return err
+		}
+		err = fn(row)
+		if err != nil {
+			return err
+		}
 	}
-	return out, nil
+	return cursor.Err()
 }
 
 // GetActive returns MUs that are not disbanded (zero disbandedAt).
