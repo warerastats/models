@@ -74,6 +74,7 @@ type ProcessedReportsCollection struct {
 	CountryAllianceMoneyFlow *processedreports.CountryAllianceMoneyFlowReportStore
 	AllianceMoneyFlow        *processedreports.AllianceMoneyFlowReportStore
 	MuAllianceMoneyFlow      *processedreports.MuAllianceMoneyFlowReportStore
+	PartyMoneyFlow           *processedreports.PartyMoneyFlowReportStore
 }
 
 type EventsCollection struct {
@@ -240,6 +241,7 @@ func newCollections(ctx context.Context, db *mongo.Database) *Collections {
 				CountryAllianceMoneyFlow: processedreports.NewCountryAllianceMoneyFlowReportStore(ctx, db),
 				AllianceMoneyFlow:        processedreports.NewAllianceMoneyFlowReportStore(ctx, db),
 				MuAllianceMoneyFlow:      processedreports.NewMuAllianceMoneyFlowReportStore(ctx, db),
+				PartyMoneyFlow:           processedreports.NewPartyMoneyFlowReportStore(ctx, db),
 			},
 		},
 

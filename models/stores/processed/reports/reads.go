@@ -133,6 +133,25 @@ func (s *MuCountryMoneyFlowReportStore) GetByMuRange(ctx context.Context, muID b
 	return out, nil
 }
 
+// GetByPartyRange returns a party's daily money-flow reports in [from, to], oldest first.
+func (s *PartyMoneyFlowReportStore) GetByPartyRange(ctx context.Context, partyID bson.ObjectID, from, to time.Time) ([]PartyMoneyFlowReport, error) {
+	cursor, err := s.coll.Find(ctx,
+		bson.D{{Key: "partyId", Value: partyID}, timeRange("dayStart", from, to)},
+		options.Find().SetSort(bson.D{{Key: "dayStart", Value: 1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var out []PartyMoneyFlowReport
+	err = cursor.All(ctx, &out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetByBattle returns a battle's per-interval damage report rows, oldest first,
 // optionally narrowed to [from, to] and/or an entity type and/or entity ids.
 func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson.ObjectID, from, to *time.Time, entityType *string, entityIDs []bson.ObjectID) ([]BattleDamageReport, error) {

@@ -339,6 +339,7 @@ type UserAttrs struct {
 	ID        bson.ObjectID  `bson:"_id"`
 	CountryID bson.ObjectID  `bson:"countryId"`
 	MuID      *bson.ObjectID `bson:"muId,omitempty"`
+	PartyID   *bson.ObjectID `bson:"partyId,omitempty"`
 }
 
 // GetManyAttrs returns only id, countryId, and muId for the given user ids.
@@ -352,6 +353,7 @@ func (s *UserStore) GetManyAttrs(ctx context.Context, ids []bson.ObjectID) ([]Us
 			{Key: "_id", Value: 1},
 			{Key: "countryId", Value: 1},
 			{Key: "muId", Value: 1},
+			{Key: "partyId", Value: 1},
 		}),
 	)
 	if err != nil {
