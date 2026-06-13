@@ -163,6 +163,40 @@ func (s *BattleDamageReportStore) GetByBattle(ctx context.Context, battleID bson
 	return out, nil
 }
 
+// SumDamageByEntity returns the total damage for one entity in [from, to).
+func (s *BattleDamageReportStore) SumDamageByEntity(ctx context.Context, entityType string, entityID bson.ObjectID, from, to time.Time) (int64, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{
+			{Key: "entityType", Value: entityType},
+			{Key: "entityId", Value: entityID},
+			{Key: "intervalStart", Value: bson.D{
+				{Key: "$gte", Value: from},
+				{Key: "$lt", Value: to},
+			}},
+		}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$damage"}}},
+		}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []struct {
+		Total int64 `bson:"total"`
+	}
+	if err = cursor.All(ctx, &rows); err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return rows[0].Total, nil
+}
+
 // BattleIDsWithReports returns the distinct battle ids that already have at least one damage report row.
 func (s *BattleDamageReportStore) BattleIDsWithReports(ctx context.Context) ([]bson.ObjectID, error) {
 	res := s.coll.Distinct(ctx, "battleId", bson.D{})

@@ -46,11 +46,13 @@ func NewBattleDamageReportStore(ctx context.Context, db *mongo.Database) *Battle
 }
 
 func (s *BattleDamageReportStore) ensureIndex(ctx context.Context) {
-	_, err := s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.D{{Key: "battleId", Value: 1}, {Key: "intervalStart", Value: 1}},
-	})
+	idxs := []mongo.IndexModel{
+		{Keys: bson.D{{Key: "battleId", Value: 1}, {Key: "intervalStart", Value: 1}}},
+		{Keys: bson.D{{Key: "entityType", Value: 1}, {Key: "entityId", Value: 1}, {Key: "intervalStart", Value: 1}}},
+	}
+	_, err := s.coll.Indexes().CreateMany(ctx, idxs)
 	if err != nil {
-		slog.Error("Failed creating compound index on battle_damage_reports.{battleId,intervalStart}", "error", err)
+		slog.Error("Failed creating indexes on battle_damage_reports", "error", err)
 	}
 }
 
