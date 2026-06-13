@@ -230,6 +230,40 @@ func (s *BattleDamageReportStore) BattleIDsWithReports(ctx context.Context) ([]b
 	return out, nil
 }
 
+// BattleIDsMissingSideRows returns battle ids that have at least one report row but no row with entityType "side".
+func (s *BattleDamageReportStore) BattleIDsMissingSideRows(ctx context.Context) ([]bson.ObjectID, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$battleId"},
+			{Key: "hasSide", Value: bson.D{{Key: "$max", Value: bson.D{
+				{Key: "$cond", Value: bson.A{
+					bson.D{{Key: "$eq", Value: bson.A{"$entityType", "side"}}},
+					true,
+					false,
+				}},
+			}}}},
+		}}},
+		{{Key: "$match", Value: bson.D{{Key: "hasSide", Value: false}}}},
+	}
+	cursor, err := s.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var rows []struct {
+		ID bson.ObjectID `bson:"_id"`
+	}
+	if err = cursor.All(ctx, &rows); err != nil {
+		return nil, err
+	}
+	out := make([]bson.ObjectID, len(rows))
+	for i := range rows {
+		out[i] = rows[i].ID
+	}
+	return out, nil
+}
+
 // GetRange returns market-state snapshots in [from, to], oldest first.
 func (s *MarketStateStore) GetRange(ctx context.Context, from, to time.Time) ([]MarketState, error) {
 	cursor, err := s.coll.Find(ctx,

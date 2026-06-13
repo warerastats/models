@@ -20,25 +20,26 @@ import (
 const UserInactivityThreshold = 14 * 24 * time.Hour
 
 type User struct {
-	ID            bson.ObjectID            `bson:"_id,omitempty"`
-	Username      string                   `bson:"username"`
-	UsernameLower string                   `bson:"usernameLower"`
-	Level         int                      `bson:"level"`
-	AvatarUrl     string                   `bson:"avatarUrl"`
-	LastDate      time.Time                `bson:"lastDate"`
-	LastUpdated   time.Time                `bson:"lastUpdated,omitempty"`
-	LastSeen      time.Time                `bson:"lastSeen,omitempty"`
-	OnlineTime    time.Time                `bson:"onlineTime"`
-	Wealth        map[string]float64       `bson:"wealth"`
-	CaseOpenings  map[string]UserCaseStats `bson:"caseStats"`
-	CountryID     bson.ObjectID            `bson:"countryId"`
-	CompanyID     *bson.ObjectID           `bson:"companyId,omitempty"`
-	PartyID       *bson.ObjectID           `bson:"partyId,omitempty"`
-	MuID          *bson.ObjectID           `bson:"muId,omitempty"`
-	MilitaryRank  int                      `bson:"militaryRank"`
-	Skills        map[string]int           `bson:"skills,omitempty"`
-	LatestObject  json.RawMessage          `bson:"raw"`
-	RawHash       string                   `bson:"rawHash,omitempty"`
+	ID               bson.ObjectID            `bson:"_id,omitempty"`
+	Username         string                   `bson:"username"`
+	UsernameLower    string                   `bson:"usernameLower"`
+	Level            int                      `bson:"level"`
+	AvatarUrl        string                   `bson:"avatarUrl"`
+	LastDate         time.Time                `bson:"lastDate"`
+	LastUpdated      time.Time                `bson:"lastUpdated,omitempty"`
+	LastSeen         time.Time                `bson:"lastSeen,omitempty"`
+	OnlineTime       time.Time                `bson:"onlineTime"`
+	Wealth           map[string]float64       `bson:"wealth"`
+	CaseOpenings     map[string]UserCaseStats `bson:"caseStats"`
+	CountryID        bson.ObjectID            `bson:"countryId"`
+	CompanyID        *bson.ObjectID           `bson:"companyId,omitempty"`
+	PartyID          *bson.ObjectID           `bson:"partyId,omitempty"`
+	MuID             *bson.ObjectID           `bson:"muId,omitempty"`
+	MilitaryRank     int                      `bson:"militaryRank"`
+	Skills           map[string]int           `bson:"skills,omitempty"`
+	LastCompanyCheck time.Time                `bson:"lastCompanyCheck,omitempty"`
+	LatestObject     json.RawMessage          `bson:"raw"`
+	RawHash          string                   `bson:"rawHash,omitempty"`
 }
 
 type UserCaseStats struct {
@@ -122,6 +123,13 @@ func (s *UserStore) ensureIndex(ctx context.Context) {
 			"Failed creating compound index on users.{countryId,_id}",
 			"error", err,
 		)
+	}
+
+	_, err = s.coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "lastCompanyCheck", Value: 1}},
+	})
+	if err != nil {
+		slog.Error("Failed creating index on users.lastCompanyCheck", "error", err)
 	}
 }
 
@@ -468,4 +476,60 @@ func (s *UserStore) Search(ctx context.Context, term string, limit int) ([]User,
 		return nil, err
 	}
 	return out, nil
+}
+
+// SetLastCompanyCheck stamps the given user's lastCompanyCheck to t.
+func (s *UserStore) SetLastCompanyCheck(ctx context.Context, id bson.ObjectID, t time.Time) error {
+	_, err := s.coll.UpdateByID(ctx, id, bson.D{{Key: "$set", Value: bson.D{{Key: "lastCompanyCheck", Value: t}}}})
+	return err
+}
+
+// GetForCompanyOwnershipCheck returns up to n populated, active user IDs ordered by oldest lastCompanyCheck.
+func (s *UserStore) GetForCompanyOwnershipCheck(ctx context.Context, n int, exclude []bson.ObjectID) ([]bson.ObjectID, error) {
+	if n <= 0 {
+		return nil, nil
+	}
+
+	thresholdMillis := int64(UserInactivityThreshold / time.Millisecond)
+
+	filter := bson.D{
+		{Key: "usernameLower", Value: bson.D{{Key: "$ne", Value: ""}}},
+	}
+	if len(exclude) > 0 {
+		filter = append(filter, bson.E{Key: "_id", Value: bson.D{{Key: "$nin", Value: exclude}}})
+	}
+	// Exclude inactive users (same heuristic as GetForRefresh).
+	filter = append(filter, bson.E{Key: "$nor", Value: bson.A{
+		bson.D{
+			{Key: "lastUpdated", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
+			{Key: "lastDate", Value: bson.D{{Key: "$gt", Value: time.Time{}}}},
+			{Key: "$expr", Value: bson.D{{Key: "$gt", Value: bson.A{
+				bson.D{{Key: "$subtract", Value: bson.A{"$lastUpdated", "$lastDate"}}},
+				thresholdMillis,
+			}}}},
+		},
+	}})
+
+	cursor, err := s.coll.Find(ctx, filter,
+		options.Find().
+			SetSort(bson.D{{Key: "lastCompanyCheck", Value: 1}}).
+			SetProjection(bson.D{{Key: "_id", Value: 1}}).
+			SetLimit(int64(n)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var ids []bson.ObjectID
+	for cursor.Next(ctx) {
+		var row struct {
+			ID bson.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&row); err != nil {
+			return nil, err
+		}
+		ids = append(ids, row.ID)
+	}
+	return ids, cursor.Err()
 }
