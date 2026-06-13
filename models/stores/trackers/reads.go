@@ -1296,11 +1296,11 @@ func (s *BattleStore) GetByAlliancePaged(ctx context.Context, allianceID bson.Ob
 	return out, nil
 }
 
-// GetBattleIDsByAlliancePaged returns distinct battle ids an alliance dealt damage in,
+// GetBattleIDsByCountries returns distinct battle ids where any of the given countries dealt damage,
 // newest first, keyset-paginated by battle id.
-func (s *DamageStore) GetBattleIDsByAlliancePaged(ctx context.Context, allianceID bson.ObjectID, before *bson.ObjectID, limit int) ([]bson.ObjectID, error) {
+func (s *DamageStore) GetBattleIDsByCountries(ctx context.Context, countryIDs []bson.ObjectID, before *bson.ObjectID, limit int) ([]bson.ObjectID, error) {
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "allianceId", Value: allianceID}}}},
+		{{Key: "$match", Value: bson.D{{Key: "countryId", Value: bson.D{{Key: "$in", Value: countryIDs}}}}}},
 		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$battleId"}}}},
 	}
 	if before != nil {
@@ -1338,10 +1338,10 @@ type AllianceParticipationAgg struct {
 	BattleCount int   `bson:"battleCount"`
 }
 
-// AggregateAllianceParticipation rolls up an alliance's total damage and distinct battle count.
-func (s *DamageStore) AggregateAllianceParticipation(ctx context.Context, allianceID bson.ObjectID) (AllianceParticipationAgg, error) {
+// AggregateAllianceParticipation rolls up total damage and distinct battle count for a set of countries.
+func (s *DamageStore) AggregateAllianceParticipation(ctx context.Context, countryIDs []bson.ObjectID) (AllianceParticipationAgg, error) {
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "allianceId", Value: allianceID}}}},
+		{{Key: "$match", Value: bson.D{{Key: "countryId", Value: bson.D{{Key: "$in", Value: countryIDs}}}}}},
 		{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: nil},
 			{Key: "totalDamage", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
@@ -1369,10 +1369,10 @@ func (s *DamageStore) AggregateAllianceParticipation(ctx context.Context, allian
 	return rows[0], nil
 }
 
-// AggregateAllianceDamage ranks users by total damage within an alliance over a time range.
-func (s *DamageStore) AggregateAllianceDamage(ctx context.Context, allianceID bson.ObjectID, limit int) ([]UserDamageAgg, error) {
+// AggregateAllianceDamage ranks users by total damage within a set of countries.
+func (s *DamageStore) AggregateAllianceDamage(ctx context.Context, countryIDs []bson.ObjectID, limit int) ([]UserDamageAgg, error) {
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.D{{Key: "allianceId", Value: allianceID}}}},
+		{{Key: "$match", Value: bson.D{{Key: "countryId", Value: bson.D{{Key: "$in", Value: countryIDs}}}}}},
 		{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: "$userId"},
 			{Key: "totalDamage", Value: bson.D{{Key: "$sum", Value: "$damages"}}},
